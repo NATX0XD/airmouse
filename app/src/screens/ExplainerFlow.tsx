@@ -10,14 +10,14 @@ type Props = { visible: boolean; onDone: () => void; addGyroListener?: (cb: (sam
 type Step = { title: string; body: string; fact?: string; image: ReturnType<typeof require> };
 
 const SENSOR_CARDS = [
-  ['Gyroscope', 'The main one: measures how fast your phone turns, 100 times a second. Turn left or right to move sideways; tilt up or down to move vertically.', require('../../assets/illustrations/explainer/sensors/gyroscope.png')],
-  ['Accelerometer', 'Feels gravity, so AirMouse knows whether the phone is upright. Calibration uses it to check the phone is flat against the screen.', require('../../assets/illustrations/explainer/sensors/accelerometer.png')],
-  ['Proximity sensor', 'The sensor next to the front camera. It confirms the phone is touching the monitor, so calibration cannot start by mistake.', require('../../assets/illustrations/explainer/sensors/proximity.png')],
-  ['Touchscreen', 'Hold the pad to point, tap to click, plus buttons for right click, scrolling and typing.', require('../../assets/illustrations/explainer/sensors/touchscreen.png')],
+  ['Gyroscope', 'Detects phone rotation and controls the cursor.', require('../../assets/illustrations/explainer/sensors/gyroscope.png')],
+  ['Accelerometer', "Detects the phone's position using gravity.", require('../../assets/illustrations/explainer/sensors/accelerometer.png')],
+  ['Proximity sensor', 'Detects nearby objects during calibration.', require('../../assets/illustrations/explainer/sensors/proximity.png')],
+  ['Touchscreen', 'Used for clicking and scrolling.', require('../../assets/illustrations/explainer/sensors/touchscreen.png')],
 ] as const;
 
 const STEPS: Step[] = [
-  { title: 'Sensors AirMouse Uses', body: "No extra hardware. Just what's already inside your iPhone.", image: require('../../assets/illustrations/explainer/sensors/gyroscope.png') },
+  { title: 'Sensors AirMouse Uses', body: 'AirMouse uses four main sensors.', image: require('../../assets/illustrations/explainer/sensors/gyroscope.png') },
   { title: 'Your iPhone feels movement.', body: 'Inside your iPhone is a tiny motion sensor called a gyroscope. It notices when you turn or tilt the phone.', image: require('../../assets/illustrations/explainer/01-gyro.png') },
   { title: 'It checks 100 times a second.', body: 'Every hundredth of a second, AirMouse asks the sensor: “How fast are you turning right now?”', fact: 'That is faster than a blink.', image: require('../../assets/illustrations/explainer/02-sampling.png') },
   { title: 'Turning becomes moving.', body: 'Turn left or right and the pointer moves sideways. Tilt up or down and it moves up or down.', image: require('../../assets/illustrations/explainer/03-direction.png') },

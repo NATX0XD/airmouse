@@ -305,16 +305,16 @@ private struct HowItWorksPage: View {
 
 private struct SensorOverviewPage: View {
     private let sensors: [(String, String, String, String)] = [
-        ("gyroscope", "Gyroscope", "Measures how fast your phone turns, 100 times a second. Turning moves the cursor.", "explainer/sensors/gyroscope"),
-        ("accelerometer", "Accelerometer", "Feels gravity, so AirMouse knows if the phone is upright and flat during calibration.", "explainer/sensors/accelerometer"),
-        ("proximity", "Proximity sensor", "Checks that the phone is really touching the monitor before calibration starts.", "explainer/sensors/proximity"),
-        ("touchscreen", "Touchscreen", "Hold the pad to point, tap to click, plus buttons for right click, scrolling and typing.", "explainer/sensors/touchscreen"),
+        ("gyroscope", "Gyroscope", "Detects phone rotation and controls the cursor.", "explainer/sensors/gyroscope"),
+        ("accelerometer", "Accelerometer", "Detects the phone's position using gravity.", "explainer/sensors/accelerometer"),
+        ("proximity", "Proximity sensor", "Detects nearby objects during calibration.", "explainer/sensors/proximity"),
+        ("touchscreen", "Touchscreen", "Used for clicking and scrolling.", "explainer/sensors/touchscreen"),
     ]
 
     var body: some View {
         VStack(spacing: 12) {
             Text("Sensors AirMouse Uses").font(.system(size: 30, weight: .bold)).multilineTextAlignment(.center)
-            Text("No extra hardware. Just what's already inside your iPhone.")
+            Text("AirMouse uses four main sensors.")
                 .font(.system(size: 17)).foregroundStyle(.secondary).multilineTextAlignment(.center)
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 ForEach(sensors, id: \.1) { sensor in
