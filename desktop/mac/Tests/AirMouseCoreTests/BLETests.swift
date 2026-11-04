@@ -53,4 +53,21 @@ import Testing
         let thai = BLESpec.localName(macName: "\u{0E13}\u{0E31}\u{0E10} Mac")
         #expect(thai.allSatisfy(\.isASCII) && thai.hasPrefix("AirMouse-"))
     }
+
+    @Test func longWritePartsAreReassembled() {
+        let a = Data(#"{"t":"hello","v":3,"#.utf8)
+        let b = Data(#""device":{"name":"Ghost"}}"#.utf8)
+        let joined = BLEHub<String>.assemble([("A", 0, a), ("A", a.count, b), ("B", 0, Data("x".utf8))])
+        #expect(joined.count == 2)
+        #expect(joined[0].0 == "A" && joined[0].1 == a + b)
+        #expect(joined[1].0 == "B")
+        // A part that doesn't continue the previous one starts a new value.
+        #expect(BLEHub<String>.assemble([("A", 0, a), ("A", 3, b)]).count == 2)
+    }
+
+    @Test func fractionalMoveOverBLE() throws {
+        let (h, out) = hub()
+        _ = h.received(Data(#"{"t":"move","dx":0.27,"dy":-1.5}"#.utf8), from: "A")
+        #expect(out.lines.last == "move +0.3 -1.5") // floats reach the output (log prints 1 dp)
+    }
 }

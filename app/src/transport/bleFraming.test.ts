@@ -46,3 +46,23 @@ test('outbox merges consecutive moves and keeps order around clicks', () => {
   assert.deepEqual(box.shift(), { t: 'move', dx: 5, dy: 0 });
   assert.equal(box.shift(), undefined);
 });
+
+test('outbox merges moves with 2-decimal sums and peeks without removing', async () => {
+  const { Outbox } = await import('./bleFraming.ts');
+  const o = new Outbox();
+  o.push({ t: 'move', dx: 0.1, dy: 0.2 });
+  o.push({ t: 'move', dx: 0.2, dy: -0.05 });
+  assert.deepEqual(o.peek(), { t: 'move', dx: 0.3, dy: 0.15 });
+  assert.equal(o.size, 1);
+  o.push({ t: 'button', b: 'left', down: true });
+  o.push({ t: 'move', dx: 1, dy: 1 });
+  assert.equal(o.size, 3); // a move after a click stays separate (order kept)
+});
+
+test('moveWait paces moves to ~60 Hz', async () => {
+  const { moveWait, BLE_MOVE_MS } = await import('./bleFraming.ts');
+  assert.equal(BLE_MOVE_MS, 16);
+  assert.equal(moveWait(1000, 990), 6);
+  assert.equal(moveWait(1000, 900), 0);
+  assert.equal(moveWait(1000, 0), 0);
+});

@@ -35,6 +35,8 @@ public struct MotionPacer: Equatable, Sendable {
     private var glideVX = 0.0
     private var glideVY = 0.0
     private var glideStart: Double?
+    /// At most one glide per received move (never glide on the give-back).
+    private var canGlide = false
 
     public init() {}
 
@@ -49,6 +51,7 @@ public struct MotionPacer: Equatable, Sendable {
         }
         lastInputAt = clock
         glideStart = nil
+        canGlide = true
         // Late packets first repay what the glide already moved.
         pendingX += dx - debtX; pendingY += dy - debtY
         debtX = 0; debtY = 0
@@ -85,7 +88,8 @@ public struct MotionPacer: Equatable, Sendable {
         // Glide through a gap.
         let age = lastInputAt.map { clock - $0 } ?? .infinity
         let late = age > max(1.5 * meanInterval, dt * 1.01)
-        if late, glideStart == nil, debtX == 0, debtY == 0, hypot(vx, vy) > 1 {
+        if late, canGlide, hypot(vx, vy) > 1 {
+            canGlide = false
             glideStart = clock; glideVX = vx; glideVY = vy
         }
         if let g = glideStart {
@@ -103,8 +107,9 @@ public struct MotionPacer: Equatable, Sendable {
             pendingX -= debtX; pendingY -= debtY
             debtX = 0; debtY = 0
         }
-        // Settle to idle once everything is spent.
-        if pendingX == 0, pendingY == 0, debtX == 0, debtY == 0, glideStart == nil, hypot(vx, vy) < 1 {
+        // Settle to idle once everything is spent (a stream at speed never drains `pending` between packets,
+        // and the glide decision is taken while it is still non-empty).
+        if pendingX == 0, pendingY == 0, debtX == 0, debtY == 0, glideStart == nil {
             vx = 0; vy = 0
         }
         return CGVector(dx: ox, dy: oy)

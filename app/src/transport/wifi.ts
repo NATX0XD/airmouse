@@ -1,13 +1,14 @@
 import { decodeInbound, encode, helloMessage } from './protocol';
 import type { DeviceInfo, InboundMsg, Msg, Transport, TransportStatus } from './types';
+import { openSocket, type MiniSocket } from './socket';
 
-// WebSocket to the AirMouse Mac app (protocol v3). Reconnects by itself until
+// WebSocket to the AirMouse Mac app (protocol v3), TCP_NODELAY on iOS (socket.ts). Reconnects by itself until
 // close() is called.
 export class WifiTransport implements Transport {
   readonly label: string;
   private url: string;
   private device: DeviceInfo;
-  private ws: WebSocket | null = null;
+  private ws: MiniSocket | null = null;
   private listeners = new Set<(s: TransportStatus, detail?: string) => void>();
   private messageListeners = new Set<(m: InboundMsg) => void>();
   private wanted = false;
@@ -43,9 +44,9 @@ export class WifiTransport implements Transport {
     if (this.retry) clearTimeout(this.retry);
     this.retry = null;
     this.emit('connecting');
-    let ws: WebSocket;
+    let ws: MiniSocket;
     try {
-      ws = new WebSocket(this.url);
+      ws = openSocket(this.url);
     } catch {
       this.emit('error', 'That address doesn’t look right.');
       return;
@@ -55,13 +56,13 @@ export class WifiTransport implements Transport {
       ws.send(encode(helloMessage(this.device)));
       this.emit('open');
     };
-    ws.onmessage = (event) => {
-      const m = decodeInbound(String(event.data));
+    ws.onmessage = (text) => {
+      const m = decodeInbound(text);
       if (m) this.messageListeners.forEach((cb) => cb(m));
     };
-    ws.onerror = () => this.emit('error', 'Can’t reach the Mac. Check that both are on the same Wi-Fi.');
-    ws.onclose = () => {
+    ws.onclose = (error) => {
       if (this.ws !== ws) return;
+      if (error) this.emit('error', 'Can’t reach the Mac. Check that both are on the same Wi-Fi.');
       this.ws = null;
       if (this.wanted) {
         this.emit('connecting');
@@ -83,8 +84,6 @@ export class WifiTransport implements Transport {
   }
 
   send(msg: Msg): boolean {
-    if (this.ws?.readyState !== WebSocket.OPEN) return false;
-    this.ws.send(encode(msg));
-    return true;
+    return this.ws?.send(encode(msg)) ?? false;
   }
 }

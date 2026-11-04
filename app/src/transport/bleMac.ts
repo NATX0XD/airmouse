@@ -1,11 +1,14 @@
 import type { Device, Subscription } from 'react-native-ble-plx';
 import { getBleManager } from './bleManager';
 import { MAC_NAME_PREFIX, MAC_RX_UUID, MAC_SERVICE_UUID, MAC_TX_UUID } from './bleIds';
-import { frame, Outbox, unframe } from './bleFraming';
+import { frame, moveWait, Outbox, unframe } from './bleFraming';
 import { decodeInbound, helloMessage } from './protocol';
 import type { DeviceInfo, InboundMsg, Msg, Transport, TransportStatus } from './types';
 
 export type BluetoothMac = { id: string; name: string };
+
+const MOVE_TIMEOUT_MS = 120; // a move older than this is stale anyway
+const WRITE_TIMEOUT_MS = 1500;
 
 export const displayName = (advertised: string | null | undefined): string => {
   const n = (advertised ?? '').trim();
@@ -51,7 +54,12 @@ export class BleMacTransport implements Transport {
   private device: Device | null = null;
   private wanted = false;
   private outbox = new Outbox();
-  private writing = false;
+  private flushing = false;
+  private paceTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastMoveAt = 0;
+  // Debug counters (writes, errors, timeouts).
+  stats = { writes: 0, errors: 0, timeouts: 0, lastError: '', mtu: 0 };
+  private tx = 0;
   private retry: ReturnType<typeof setTimeout> | null = null;
   private subs: Subscription[] = [];
   private listeners = new Set<(s: TransportStatus, detail?: string) => void>();
@@ -114,6 +122,7 @@ export class BleMacTransport implements Transport {
         return;
       }
       await d.discoverAllServicesAndCharacteristics();
+      this.stats.mtu = d.mtu;
       this.device = d;
       this.subs.push(
         d.onDisconnected(() => {
@@ -176,6 +185,8 @@ export class BleMacTransport implements Transport {
     this.retry = null;
     this.dropSubs();
     this.outbox.clear();
+    if (this.paceTimer) clearTimeout(this.paceTimer);
+    this.paceTimer = null;
     const d = this.device;
     this.device = null;
     if (d) d.cancelConnection().catch(() => {});
@@ -183,31 +194,68 @@ export class BleMacTransport implements Transport {
     this.emit('idle');
   }
 
-  send(msg: Msg) {
-    if (!this.device) return;
+  send(msg: Msg): boolean {
+    if (!this.device) return false;
     this.outbox.push(msg);
-    // Defer to the end of this JS tick so one gyro tick = at most one move write.
-    if (!this.writing) {
-      this.writing = true;
-      setTimeout(() => this.flush(), 0);
-    }
+    if (!this.flushing && !this.paceTimer) void this.flush();
+    return true;
   }
 
+  // ble-plx waits for CoreBluetooth's "ready to send" signal (without
+  // response) or the ATT reply (with response) with no timeout. If that
+  // signal is missed, the promise never settles and every later write
+  // queues behind it: still connected, but the pointer stops. Bound it.
+  private write(d: Device, value: string, withResponse: boolean): Promise<unknown> {
+    const id = `am-w${++this.tx}`;
+    const op = withResponse
+      ? d.writeCharacteristicWithResponseForService(MAC_SERVICE_UUID, MAC_RX_UUID, value, id)
+      : d.writeCharacteristicWithoutResponseForService(MAC_SERVICE_UUID, MAC_RX_UUID, value, id);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const limit = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        this.stats.timeouts += 1;
+        getBleManager().cancelTransaction(id);
+        reject(new Error(withResponse ? 'write timed out' : 'not ready to send'));
+      }, withResponse ? WRITE_TIMEOUT_MS : MOVE_TIMEOUT_MS);
+    });
+    return Promise.race([op, limit]).finally(() => timer && clearTimeout(timer));
+  }
+
+  // One write at a time (ble-plx waits for canSendWriteWithoutResponse, so
+  // this is the back-pressure). Moves are paced to ~60 Hz; moves arriving in
+  // between merge into the queued one.
   private async flush() {
-    this.writing = true;
+    if (this.flushing) return;
+    this.flushing = true;
     try {
-      let msg = this.outbox.shift();
-      while (msg && this.device) {
+      while (this.device) {
+        const head = this.outbox.peek();
+        if (!head) break;
+        if (head.t === 'move') {
+          const wait = moveWait(Date.now(), this.lastMoveAt);
+          if (wait > 0) {
+            this.paceTimer = setTimeout(() => {
+              this.paceTimer = null;
+              void this.flush();
+            }, wait);
+            break;
+          }
+        }
+        this.outbox.shift();
         const d = this.device;
-        const value = frame(msg);
-        if (msg.t === 'move') await d.writeCharacteristicWithoutResponseForService(MAC_SERVICE_UUID, MAC_RX_UUID, value);
-        else await d.writeCharacteristicWithResponseForService(MAC_SERVICE_UUID, MAC_RX_UUID, value);
-        msg = this.outbox.shift();
+        const value = frame(head);
+        try {
+          if (head.t === 'move') this.lastMoveAt = Date.now();
+          await this.write(d, value, head.t !== 'move');
+          this.stats.writes += 1;
+        } catch (e) {
+          // The message is dropped, the loop goes on; a lost link is handled by onDisconnected.
+          this.stats.errors += 1;
+          this.stats.lastError = e instanceof Error ? e.message : String(e);
+        }
       }
-    } catch {
-      // A failed write usually means the link dropped; onDisconnected reconnects.
     } finally {
-      this.writing = false;
+      this.flushing = false;
     }
   }
 }

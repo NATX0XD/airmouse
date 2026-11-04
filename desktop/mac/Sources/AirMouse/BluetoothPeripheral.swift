@@ -155,22 +155,6 @@ final class BluetoothPeripheral: NSObject {
     }
 }
 
-extension BluetoothPeripheral {
-    /// A long write (bigger than the ATT MTU) arrives as several requests of
-    /// one central with growing offsets: glue them back into one value.
-    nonisolated static func assemble(_ parts: [(UUID, Int, Data)]) -> [(UUID, Data)] {
-        var out: [(UUID, Data)] = []
-        for (id, offset, data) in parts {
-            if offset > 0, let last = out.last, last.0 == id, last.1.count == offset {
-                out[out.count - 1].1.append(data)
-            } else {
-                out.append((id, data))
-            }
-        }
-        return out
-    }
-}
-
 extension BluetoothPeripheral: CBPeripheralManagerDelegate {
     nonisolated func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         let s = peripheral.state
@@ -196,7 +180,7 @@ extension BluetoothPeripheral: CBPeripheralManagerDelegate {
 
     nonisolated func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
         let rx = CBUUID(string: BLESpec.rx)
-        let items = BluetoothPeripheral.assemble(requests.compactMap { r -> (UUID, Int, Data)? in
+        let items = BLEHub<UUID>.assemble(requests.compactMap { r -> (UUID, Int, Data)? in
             guard r.characteristic.uuid == rx, let v = r.value else { return nil }
             return (r.central.identifier, r.offset, v)
         })

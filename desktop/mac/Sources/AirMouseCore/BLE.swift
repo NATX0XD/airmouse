@@ -56,4 +56,19 @@ public final class BLEHub<Peer: Hashable> {
     }
 
     public static func encode(_ msg: OutboundMessage) -> Data { Data(ProtocolCodec.encode(msg).utf8) }
+
+    /// A long write (bigger than the ATT MTU) reaches the peripheral as several
+    /// requests of one central with growing offsets: glue them back together.
+    /// Parts at offset 0 (or not continuing the previous part) start a new value.
+    public static func assemble(_ parts: [(Peer, Int, Data)]) -> [(Peer, Data)] {
+        var out: [(Peer, Data)] = []
+        for (peer, offset, data) in parts {
+            if offset > 0, let last = out.last, last.0 == peer, last.1.count == offset {
+                out[out.count - 1].1.append(data)
+            } else {
+                out.append((peer, data))
+            }
+        }
+        return out
+    }
 }

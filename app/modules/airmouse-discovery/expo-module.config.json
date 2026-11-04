@@ -1,6 +1,12 @@
 {
-  "platforms": ["apple"],
+  "platforms": [
+    "apple"
+  ],
   "apple": {
-    "modules": ["AirMouseDiscoveryModule", "AirMouseProximityModule"]
+    "modules": [
+      "AirMouseDiscoveryModule",
+      "AirMouseProximityModule",
+      "AirMouseSocketModule"
+    ]
   }
 }

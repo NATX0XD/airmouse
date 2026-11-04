@@ -67,6 +67,17 @@ export function base64ToBytes(b64: string): Uint8Array {
 export const frame = (msg: Msg | HelloMsg): string => bytesToBase64(utf8Encode(JSON.stringify(msg)));
 export const unframe = (b64: string): string => utf8Decode(base64ToBytes(b64));
 
+const round2 = (v: number) => Math.round(v * 100) / 100 || 0;
+
+// Moves go out at most this often over Bluetooth (~60 Hz); the gyro runs at
+// 100 Hz, so moves in between merge in the outbox instead of piling up.
+export const BLE_MOVE_MS = 16;
+
+// How long to wait before the next move write (0 = now).
+export function moveWait(now: number, lastMoveAt: number, interval = BLE_MOVE_MS): number {
+  return Math.max(0, interval - (now - lastMoveAt));
+}
+
 // Ordered outbox. Consecutive moves merge into one, so while a write is in
 // flight the pointer never queues up a backlog (at most one move per flush).
 export class Outbox {
@@ -75,10 +86,14 @@ export class Outbox {
   push(msg: Msg | HelloMsg): void {
     const last = this.items[this.items.length - 1];
     if (msg.t === 'move' && last?.t === 'move') {
-      this.items[this.items.length - 1] = { t: 'move', dx: last.dx + msg.dx, dy: last.dy + msg.dy };
+      this.items[this.items.length - 1] = { t: 'move', dx: round2(last.dx + msg.dx), dy: round2(last.dy + msg.dy) };
       return;
     }
     this.items.push(msg);
+  }
+
+  peek(): Msg | HelloMsg | undefined {
+    return this.items[0];
   }
 
   shift(): Msg | HelloMsg | undefined {

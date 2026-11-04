@@ -525,6 +525,10 @@ struct DiagnosticsSection: View {
                     ForEach(snap.peers) { peer in PeerDiagnosticsCard(peer: peer, now: snap.now) }
                     OverlayDiagnosticsCard(calibration: model.calibration, overlayShowing: model.overlayShowing, rate: model.rate,
                                            pacerFPS: model.pacerFPS)
+                    Label("If the pointer hitches every few seconds, turn off AirDrop / Handoff, or use Bluetooth.",
+                          systemImage: "lightbulb")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
@@ -576,7 +580,7 @@ private struct PeerDiagnosticsCard: View {
                 Divider().frame(height: 30).padding(.horizontal, 14)
                 DiagFact(label: "Total", value: peer.stats.total.formatted())
                 Divider().frame(height: 30).padding(.horizontal, 14)
-                DiagFact(label: "Move gap mean / max (2 s)", value: moveGap,
+                DiagFact(label: "Gap avg/max · >50 ms per min", value: moveGap,
                          tint: peer.stats.moveInterval(now: now).map { $0.maxMs > 60 ? Theme.warning : Theme.success })
                 Spacer(minLength: 0)
             }
@@ -585,8 +589,9 @@ private struct PeerDiagnosticsCard: View {
     }
 
     private var moveGap: String {
-        guard let j = peer.stats.moveInterval(now: now) else { return "—" }
-        return String(format: "%.1f / %.0f ms", j.meanMs, j.maxMs)
+        let hitches = peer.stats.longGaps(now: now)
+        guard let j = peer.stats.moveInterval(now: now) else { return "— · \(hitches)" }
+        return String(format: "%.1f / %.0f ms · %d", j.meanMs, j.maxMs, hitches)
     }
 
     private var moveFresh: Bool { peer.stats.lastMoveAt.map { now - $0 < 1 } ?? false }

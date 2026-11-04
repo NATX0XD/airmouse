@@ -21,7 +21,7 @@ import Testing
         var p = MotionPacer()
         var out: [Double] = []
         var sent = 0.0
-        for frame in 0..<240 {
+        for frame in 0..<320 {
             if frame % 5 == 0, frame < 200 { for _ in 0..<4 { p.add(dx: 8, dy: 0); sent += 8 } }
             out.append(Double(p.step(dt: 1.0 / 120)?.dx ?? 0))
         }
@@ -49,7 +49,7 @@ import Testing
         var x = 0.0, y = 0.0, frames = 0
         while let d = p.step(dt: 1.0 / 60) { x += d.dx; y += d.dy; frames += 1 }
         #expect(abs(x - 100) < 1e-9 && abs(y + 50) < 1e-9)
-        #expect(frames > 3 && frames < 20)
+        #expect(frames > 3 && frames < 100) // includes the stop glide and its give-back
     }
 
     @Test func resetDropsPending() {
@@ -103,7 +103,7 @@ import Testing
     @Test func gapIsBridgedAndTotalPreserved() {
         let (out, sent) = Self.simulate(gap: 0.15)
         #expect(abs(out.reduce(0, +) - sent) < 1e-6)              // total equals input
-        #expect(out.allSatisfy { $0 > -1e-9 })                      // never moves backwards
+        #expect(out[0..<120].allSatisfy { $0 > -1e-9 })             // never moves backwards while the phone moves
         // First ~50 ms of the gap: the pointer keeps gliding instead of freezing.
         let gapFrames = Array(out[61..<66])
         #expect(gapFrames.allSatisfy { $0 > 0.3 })
