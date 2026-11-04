@@ -155,7 +155,6 @@ struct PracticeView: View {
             .animation(.spring(response: 0.42, dampingFraction: 0.78), value: game.index)
             .animation(.spring(response: 0.5, dampingFraction: 0.85), value: game.phase)
         }
-        .environment(\.colorScheme, .dark)
         .ignoresSafeArea()
         .onChange(of: game.targets) { _, _ in effects.removeAll() } // Try Again
     }

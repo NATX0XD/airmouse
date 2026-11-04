@@ -73,7 +73,6 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
-            AuroraBackground()
             Group {
             if model.onboarding != nil {
                 OnboardingView(model: model)
@@ -90,7 +89,6 @@ struct RootView: View {
             }
         }
         .frame(minWidth: 740, minHeight: 600)
-        .environment(\.colorScheme, .dark)
         .animation(.easeInOut(duration: 0.3), value: model.onboarding == nil)
         .animation(.easeInOut(duration: 0.25), value: model.tour == nil)
         .onAppear { model.startTourIfNeeded(after: 1.0) }
@@ -99,17 +97,16 @@ struct RootView: View {
     private var split: some View {
         NavigationSplitView {
             List(selection: $model.section) {
-                ForEach(AppSection.allCases, id: \.self) { s in
-                    SidebarRow(section: s, selected: model.section, requiredMissing: requiredMissing)
-                    .tag(s)
-                    .modifier(TourRowMarker(section: s))
+                Section("AirMouse") {
+                    ForEach(AppSection.allCases, id: \.self) { s in
+                        SidebarRow(section: s, selected: model.section, requiredMissing: requiredMissing)
+                            .tag(s)
+                            .modifier(TourRowMarker(section: s))
+                    }
                 }
             }
             .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
-            .background(.ultraThinMaterial)
-            .background(Color.black.opacity(0.30))
-            .environment(\.colorScheme, .dark)
+            .scrollContentBackground(.visible)
             .navigationSplitViewColumnWidth(min: 164, ideal: 184, max: 220)
             .safeAreaInset(edge: .bottom) { SidebarStatus(model: model) }
         } detail: {
@@ -152,18 +149,8 @@ private struct SidebarRow: View {
                     .background(Circle().fill(Theme.warning))
             }
         }
-        .foregroundStyle(.white)
-        .padding(.vertical, 2)
-        .listRowInsets(EdgeInsets(top: 4, leading: 10, bottom: 4, trailing: 10))
-        .listRowBackground(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(section == selected ? Color.white.opacity(0.16) : .clear)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Theme.purple.opacity(section == selected ? 0.65 : 0), lineWidth: 1)
-                        .shadow(color: Theme.purple.opacity(section == selected ? 0.75 : 0), radius: 12)
-                )
-        )
+        .padding(.vertical, 1)
+        .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
     }
 }
 
@@ -219,8 +206,7 @@ struct Page<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .background(AuroraBackground())
-        .foregroundStyle(.white)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
@@ -230,33 +216,55 @@ struct HomePage: View {
     var model: AppModel
 
     var body: some View {
-        Page(title: "AirMouse", subtitle: model.isConnected ? "Your iPhone is ready to point." : "Waiting for your iPhone…") {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center, spacing: 18) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("AirMouse").font(.largeTitle.weight(.bold))
+                    Label(model.isConnected ? "iPhone connected" : "Waiting for iPhone", systemImage: model.isConnected ? "checkmark.circle.fill" : "circle.dashed")
+                        .font(.subheadline).foregroundStyle(model.isConnected ? Theme.success : .secondary)
+                }
+                Spacer()
+                Button(action: model.requestCalibration) { Label("Calibrate", systemImage: "scope") }
+                    .buttonStyle(.borderedProminent).controlSize(.large)
+                    .tint(Theme.indigo)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.aurora).opacity(0.18))
+                    .tourTarget(.calibrate)
+            }
             if let banner = model.banner { BannerRow(text: banner) }
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
-                DashboardCard(title: "Connection", caption: model.isConnected ? "Connected and ready" : "Waiting for iPhone…", image: "waves", fallback: "wifi") {
-                    StatusLine(symbol: "wifi", label: "Wi-Fi", value: model.port == nil ? "Starting…" : (model.isConnected ? "Connected" : "Listening"), tint: Theme.cyan)
-                    StatusLine(symbol: "dot.radiowaves.left.and.right", label: "Bluetooth", value: bleLabel, tint: Theme.purple)
-                }.tourTarget(.statusCard)
-                DashboardCard(title: "Calibration", caption: calibrationCaption, image: "gauge", fallback: "speedometer") {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(calibrationValue).font(.system(size: 34, weight: .bold, design: .rounded)).monospacedDigit()
-                        Text("pt/rad").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+            Grid(horizontalSpacing: 12, verticalSpacing: 12) {
+                GridRow {
+                    DashboardCard(title: "Connection", caption: model.isConnected ? "Connected and ready" : "Waiting for iPhone…", image: "waves", fallback: "wifi") {
+                        StatusLine(symbol: "wifi", label: "Wi-Fi", value: model.port == nil ? "Starting…" : (model.isConnected ? "Connected" : "Listening"), tint: Theme.cyan)
+                        StatusLine(symbol: "dot.radiowaves.left.and.right", label: "Bluetooth", value: bleLabel, tint: Theme.purple)
+                    }.tourTarget(.statusCard)
+                    DashboardCard(title: "Calibration", caption: calibrationCaption, image: "gauge", fallback: "speedometer") {
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Text(calibrationValue).font(.system(size: 32, weight: .bold, design: .rounded)).monospacedDigit()
+                            Text("pt/rad").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                        }
+                        Button(model.lastCalibration == nil ? "Calibrate" : "Recalibrate", action: model.requestCalibration).buttonStyle(.bordered).controlSize(.large)
                     }
-                    PillButton(title: model.lastCalibration == nil ? "Calibrate" : "Recalibrate", action: model.requestCalibration)
                 }
-                DashboardCard(title: "Practice Clicking", caption: "Point, tap, and build confidence", image: "cursor-click", fallback: "cursorarrow.click") {
-                    PillButton(title: "Start Practice", action: model.startPractice).tourTarget(.centerCursor)
+                GridRow {
+                    DashboardCard(title: "Practice Clicking", caption: "Point, tap, and build confidence", image: "cursor-click", fallback: "cursorarrow.click") {
+                        Button("Start Practice", action: model.startPractice).buttonStyle(.bordered).controlSize(.large).tourTarget(.centerCursor)
+                    }
+                    DashboardCard(title: "Pair iPhone", caption: "Scan a code or choose this Mac", image: "iphone-remote", fallback: "qrcode.viewfinder") {
+                        Button("Open Pairing", action: { model.section = .pair }).buttonStyle(.bordered).controlSize(.large)
+                    }.onTapGesture { model.section = .pair }.tourTarget(.pairRow)
                 }
-                DashboardCard(title: "Pair iPhone", caption: "Scan a code or choose this Mac", image: "iphone-remote", fallback: "qrcode.viewfinder") {
-                    PillButton(title: "Open Pairing", action: { model.section = .pair })
-                }.onTapGesture { model.section = .pair }.tourTarget(.pairRow)
+                GridRow {
+                    DashboardCard(title: "Permissions", caption: model.setup.warnings.isEmpty ? "Everything is ready" : "1 needs attention", image: "shield-check", fallback: "lock.shield.fill") {
+                        StatusLine(symbol: model.setup.warnings.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill", label: model.setup.warnings.isEmpty ? "All systems go" : "Review setup", value: "", tint: model.setup.warnings.isEmpty ? Theme.success : Theme.warning)
+                        Button("Review", action: { model.openSetup() }).buttonStyle(.bordered).controlSize(.large)
+                    }
+                }
             }
-            DashboardCard(title: "Permissions", caption: model.setup.warnings.isEmpty ? "Everything is ready" : "1 needs attention", image: "shield-check", fallback: "lock.shield.fill") {
-                StatusLine(symbol: model.setup.warnings.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill", label: model.setup.warnings.isEmpty ? "All systems go" : "Review setup", value: "", tint: model.setup.warnings.isEmpty ? Theme.success : Theme.warning)
-                PillButton(title: "Review", action: { model.openSetup() })
-            }
-            HStack { Spacer(); RunButton(action: model.requestCalibration).tourTarget(.calibrate); Spacer() }
+            .frame(maxWidth: .infinity)
         }
+        .padding(.horizontal, 28).padding(.vertical, 20)
+        .frame(maxWidth: 700, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color(nsColor: .windowBackgroundColor))
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: model.banner)
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: model.setup.warnings)
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: model.isConnected)
@@ -274,16 +282,15 @@ private struct DashboardCard<Content: View>: View {
             HStack { VStack(alignment: .leading, spacing: 3) { Text(title).font(.system(size: 17, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.78); Text(caption).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.72) }; Spacer(minLength: 4) }
             content().frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(16).frame(minHeight: 124, alignment: .bottomLeading)
-        .background { RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous).fill(Theme.glassFill).background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)).overlay(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous).stroke(Theme.glassBorder, lineWidth: 0.8)).shadow(color: Theme.purple.opacity(0.18), radius: 20, y: 10) }
-        .overlay(alignment: .topTrailing) { AppIllustration(name: image, fallback: fallback).frame(width: 104, height: 104).offset(x: 10, y: -25).allowsHitTesting(false) }
-        .clipped()
+        .padding(14).frame(minHeight: 118, alignment: .bottomLeading)
+        .background(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous).fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.08), radius: 10, y: 3)
+        .overlay(alignment: .topTrailing) { AppIllustration(name: image, fallback: fallback).frame(width: 80, height: 80).padding(10).allowsHitTesting(false) }
     }
 }
 
-private struct StatusLine: View { var symbol: String; var label: String; var value: String; var tint: Color; var body: some View { HStack(spacing: 8) { Image(systemName: symbol).foregroundStyle(tint).frame(width: 18); Text(label).font(.system(size: 13, weight: .medium)); Spacer(); Text(value).font(.system(size: 12)).foregroundStyle(.white.opacity(0.65)).lineLimit(1) } } }
-private struct PillButton: View { var title: String; var action: () -> Void; var body: some View { Button(title, action: action).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white).padding(.horizontal, 13).padding(.vertical, 7).background(Capsule().fill(Theme.aurora)).buttonStyle(.plain) } }
-private struct RunButton: View { var action: () -> Void; var body: some View { Button(action: action) { VStack(spacing: 2) { Image(systemName: "scope").font(.system(size: 24, weight: .semibold)); Text("Calibrate").font(.system(size: 13, weight: .bold)) }.foregroundStyle(.white).frame(width: 86, height: 86).background(Circle().fill(Theme.aurora).overlay(Circle().stroke(.white.opacity(0.28), lineWidth: 1))).shadow(color: Theme.blue.opacity(0.45), radius: 20, y: 8) }.buttonStyle(.plain) } }
+private struct StatusLine: View { var symbol: String; var label: String; var value: String; var tint: Color; var body: some View { HStack(spacing: 8) { Image(systemName: symbol).foregroundStyle(tint).frame(width: 18); Text(label).font(.system(size: 13, weight: .medium)); Spacer(); Text(value).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1) } } }
 
 /// Fills Home's lower half: how it works + last calibration, one compact row.
 private struct HomeInfoRow: View {
@@ -452,9 +459,11 @@ struct CalibrationPage: View {
 
             HStack(spacing: 10) {
                 Button(action: model.requestCalibration) { Label("Start Calibration", systemImage: "scope") }
-                    .buttonStyle(AuroraButtonStyle())
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                 Button(action: model.startPractice) { Label("Practice Clicking", systemImage: "target") }
-                    .buttonStyle(SoftButtonStyle())
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
             }
             .frame(maxWidth: 440)
             if let banner = model.banner { BannerRow(text: banner) }

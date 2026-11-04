@@ -114,7 +114,6 @@ struct OverlayView: View {
             .animation(.spring(response: 0.45, dampingFraction: 0.8), value: state.pointed)
             .animation(.spring(response: 0.3, dampingFraction: 0.75), value: state.lit)
         }
-        .environment(\.colorScheme, .dark)
         .ignoresSafeArea()
     }
 

@@ -199,11 +199,26 @@ struct PermissionWarningsCard: View {
 
 struct PermissionsPage: View {
     var model: AppModel
+    var assistant = false
 
     var body: some View {
         let flow = model.setup
         let done = flow.steps.filter(flow.isSatisfied).count
-        Page(title: "Permissions", subtitle: "AirMouse needs a few permissions to control the pointer and talk to your iPhone.") {
+        Page(title: assistant ? "Set up AirMouse" : "Permissions",
+             subtitle: assistant ? "Allow these permissions so AirMouse can move the pointer and connect to your iPhone." : "AirMouse needs a few permissions to control the pointer and talk to your iPhone.") {
+            if assistant {
+                VStack(spacing: 8) {
+                    AppIllustration(name: "iphone-remote", fallback: "iphone")
+                        .frame(width: 132, height: 108)
+                    Text("Almost ready")
+                        .font(.title2.weight(.semibold))
+                    Text("AirMouse needs access to control your Mac and find your iPhone.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 4)
+            }
             ProgressHeader(done: done, total: flow.steps.count, ready: flow.allRequiredGranted)
             VStack(spacing: 12) {
                 ForEach(Array(flow.steps.enumerated()), id: \.element) { i, k in

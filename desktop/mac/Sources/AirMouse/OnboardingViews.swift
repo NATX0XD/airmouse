@@ -112,7 +112,7 @@ private struct LaptopMock: View {
                 .fill(LinearGradient(colors: [Color(hex: 0xC7C7CC), Color(hex: 0x8E8E93)], startPoint: .top, endPoint: .bottom))
                 .frame(width: width, height: 12)
         }
-        .background(AuroraBackground())
+        .background(Color(nsColor: .windowBackgroundColor))
         .shadow(color: .black.opacity(0.2), radius: 14, y: 8)
     }
 }
@@ -170,14 +170,14 @@ struct OnboardingView: View {
     var body: some View {
         let flow = model.onboarding ?? OnboardingFlow()
         ZStack {
-            AuroraBackground()
+            Color(nsColor: .windowBackgroundColor)
             VStack(spacing: 0) {
             Group {
                 switch flow.current {
                 case .welcome?: WelcomePage()
                 case .howItWorks?: HowItWorksPage()
                 case .getIPhone?: GetIPhonePage(model: model)
-                case .permissions?: PermissionsPage(model: model)
+                case .permissions?: PermissionsPage(model: model, assistant: true)
                 case nil: EmptyView()
                 }
             }
@@ -187,7 +187,7 @@ struct OnboardingView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
 
-            Divider().overlay(Color.white.opacity(0.12))
+            Divider()
             HStack {
                 Button("Back") { model.onboardingBack() }
                     .opacity(flow.canGoBack ? 1 : 0)
@@ -203,7 +203,8 @@ struct OnboardingView: View {
                 Button(action: model.onboardingNext) {
                     Text(continueTitle(flow)).frame(minWidth: 110)
                 }
-                .buttonStyle(AuroraButtonStyle())
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
                 .frame(width: 170)
                 .keyboardShortcut(.defaultAction)
             }

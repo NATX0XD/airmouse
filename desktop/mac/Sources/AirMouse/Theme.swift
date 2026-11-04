@@ -21,22 +21,13 @@ enum Theme {
     /// "Aurora", 135° (top-leading → bottom-trailing).
     static let aurora = LinearGradient(colors: [blue, indigo, purple], startPoint: .topLeading, endPoint: .bottomTrailing)
 
-    static let cardRadius: CGFloat = 22
-    static let buttonRadius: CGFloat = 14
-    static let glassFill = Color.black.opacity(0.30)
-    static let glassBorder = Color.white.opacity(0.12)
-    static let darkAurora = LinearGradient(colors: [Color(hex: 0x090B2A), Color(hex: 0x24135A), Color(hex: 0x100D36)], startPoint: .topLeading, endPoint: .bottomTrailing)
+    static let cardRadius: CGFloat = 14
+    static let buttonRadius: CGFloat = 10
 }
 
 struct AuroraBackground: View {
     var body: some View {
-        ZStack {
-            Theme.darkAurora
-            Circle().fill(Theme.blue.opacity(0.18)).frame(width: 420).blur(radius: 90).offset(x: -260, y: -250)
-            Circle().fill(Theme.purple.opacity(0.18)).frame(width: 460).blur(radius: 110).offset(x: 270, y: 250)
-            Circle().fill(Theme.cyan.opacity(0.08)).frame(width: 300).blur(radius: 90).offset(x: 120, y: -220)
-        }
-        .ignoresSafeArea()
+        Color(nsColor: .windowBackgroundColor).ignoresSafeArea()
     }
 }
 
@@ -46,15 +37,14 @@ struct CardBackground: ViewModifier {
     var tint: Color?
     func body(content: Content) -> some View {
         content
-            .padding(16)
+            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 let shape = RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                shape.fill(.ultraThinMaterial)
-                    .overlay(shape.fill(Theme.glassFill))
-                    .overlay { if let tint { shape.fill(tint.opacity(0.08)) } }
-                    .overlay { shape.strokeBorder(tint?.opacity(0.35) ?? Theme.glassBorder, lineWidth: 0.8) }
-                    .shadow(color: Theme.indigo.opacity(0.18), radius: 22, y: 10)
+                shape.fill(.regularMaterial)
+                    .overlay { if let tint { shape.fill(tint.opacity(0.06)) } }
+                    .overlay { shape.strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5) }
+                    .shadow(color: .black.opacity(0.08), radius: 10, y: 3)
             }
     }
 }
@@ -69,19 +59,8 @@ struct AuroraButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var enabled
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .background {
-                RoundedRectangle(cornerRadius: Theme.buttonRadius, style: .continuous)
-                    .fill(enabled ? AnyShapeStyle(Theme.aurora) : AnyShapeStyle(Color.secondary.opacity(0.35)))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: Theme.buttonRadius, style: .continuous)
-                            .fill(LinearGradient(colors: [.white.opacity(0.22), .clear], startPoint: .top, endPoint: .center))
-                    }
-                    .shadow(color: Theme.indigo.opacity(enabled ? (configuration.isPressed ? 0.15 : 0.35) : 0), radius: 10, y: 4)
-            }
-            .opacity(enabled ? 1 : 0.7)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: configuration.isPressed)
     }
