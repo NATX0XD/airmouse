@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "AirMouse",
+    "slug": "airmouse",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nattakit.airmouse",
+      "appleTeamId": "KSQ5PZ867K",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "AirMouse finds and connects to your Mac on the same Wi-Fi network.",
+        "NSMotionUsageDescription": "AirMouse uses the gyroscope to move the pointer on your Mac.",
+        "NSBluetoothAlwaysUsageDescription": "AirMouse can connect to your Mac over Bluetooth, without Wi-Fi.",
+        "NSBonjourServices": [
+          "_airmouse._tcp"
+        ],
+        "NSCameraUsageDescription": "AirMouse uses the camera to scan the QR code shown on your Mac."
+      }
+    },
+    "plugins": [
+      [
+        "react-native-ble-plx",
+        {
+          "bluetoothAlwaysPermission": "AirMouse can connect to your Mac over Bluetooth, without Wi-Fi."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "AirMouse uses the camera to scan the QR code shown on your Mac.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ]
+    ],
+    "android": {
+      "permissions": [
+        "BLUETOOTH_SCAN",
+        "BLUETOOTH_CONNECT",
+        "BLUETOOTH_ADVERTISE"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.nattakit.airmouse"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "scheme": "airmouse"
+  }
+}

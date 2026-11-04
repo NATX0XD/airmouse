@@ -1,0 +1,133 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "◉ AirMouse" [ref=e3] [cursor=pointer]:
+      - /url: "#top"
+    - link "ดาวน์โหลด ↓" [ref=e4] [cursor=pointer]:
+      - /url: "#downloads"
+  - main [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - paragraph [ref=e8]: SENSOR PROJECT / KMUTNB
+        - heading [level=1] [ref=e9]:
+          - text: ใช้มือถือ
+          - emphasis [ref=e10]: เป็นเมาส์
+          - text: ชี้กลางอากาศ
+        - paragraph [ref=e11]: หันโทรศัพท์แล้วเคอร์เซอร์บนคอมขยับตาม เหมือนรีโมต LG Magic Remote — ใช้ gyroscope เป็นตัวหลัก
+        - generic [ref=e12]:
+          - generic [ref=e13]: ยังไม่พร้อม
+          - link "ดาวน์โหลดตัวรับบนคอม ↗" [ref=e14] [cursor=pointer]:
+            - /url: "#downloads"
+        - paragraph [ref=e15]: เชื่อมต่อผ่าน Wi‑Fi วงเดียวกัน · ไม่ต้องสมัครสมาชิก
+      - generic [ref=e16]:
+        - img "โทรศัพท์ชี้ไปยังแล็ปท็อป" [ref=e17]
+        - generic [ref=e31]: 01 ขยับเครื่อง02 เคอร์เซอร์เคลื่อน
+    - generic [ref=e32]:
+      - generic [ref=e33]:
+        - article [ref=e34]:
+          - text: "01"
+          - heading "ติดตั้งตัวรับ" [level=3] [ref=e35]
+          - paragraph [ref=e36]: เปิด receiver บนคอม แล้วดู IP ที่แสดง
+        - article [ref=e37]:
+          - text: "02"
+          - heading "เปิดแอป" [level=3] [ref=e38]
+          - paragraph [ref=e39]: ใส่ IP และ port เดียวกันบนโทรศัพท์
+        - article [ref=e40]:
+          - text: "03"
+          - heading "ชี้แล้วคลิก" [level=3] [ref=e41]
+          - paragraph [ref=e42]: แตะค้างที่แผ่นกลางจอ แล้วหันเครื่อง
+      - paragraph [ref=e43]:
+        - text: "ก่อนใช้: วางมือถือกลางจอ กด"
+        - strong [ref=e44]: คาลิเบต
+        - text: เพื่อรีเซ็ตจุดอ้างอิง
+    - generic [ref=e45]:
+      - paragraph [ref=e46]: GET STARTED
+      - heading "ดาวน์โหลดให้ตรงกับอุปกรณ์" [level=2] [ref=e47]
+      - generic [ref=e48]:
+        - article [ref=e49]:
+          - generic [ref=e50]:
+            - generic [ref=e51]: ต้นทาง
+            - generic [ref=e52]: โทรศัพท์
+          - heading "ติดตั้งบนโทรศัพท์" [level=3] [ref=e53]
+          - paragraph [ref=e54]: Android APK สำหรับแอป AirMouse
+          - generic [ref=e55]: ยังไม่พร้อม
+          - paragraph [ref=e56]: "ครั้งแรก: อนุญาต “ติดตั้งแอปที่ไม่รู้จัก” ให้เบราว์เซอร์หรือ Files"
+          - generic [ref=e57]:
+            - generic [ref=e58]: iPhone
+            - generic [ref=e59]: เร็วๆ นี้
+        - article [ref=e60]:
+          - generic [ref=e61]:
+            - generic [ref=e62]: ปลายทาง
+            - generic [ref=e63]: คอมพิวเตอร์
+          - heading "ติดตั้งตัวรับ" [level=3] [ref=e64]
+          - paragraph [ref=e65]: โปรแกรมรับสัญญาณจากโทรศัพท์
+          - generic [ref=e66]:
+            - strong [ref=e67]: macOS · Apple Silicon
+            - link "ดาวน์โหลด ZIP (9.6 MB) ↗" [ref=e68] [cursor=pointer]:
+              - /url: downloads/AirMouse-Receiver-mac.zip
+            - list [ref=e69]:
+              - listitem [ref=e70]: คลาย zip แล้วดับเบิลคลิก Run AirMouse
+              - listitem [ref=e71]: กด Open ครั้งแรก (ยังไม่ notarise)
+              - listitem [ref=e72]: อนุญาต Accessibility ให้ Terminal
+          - generic [ref=e73]:
+            - strong [ref=e74]: Windows · amd64
+            - link "ดาวน์โหลด ZIP (10.8 MB) ↗" [ref=e75] [cursor=pointer]:
+              - /url: downloads/AirMouse-Receiver-windows.zip
+            - list [ref=e76]:
+              - listitem [ref=e77]: คลาย zip ในโฟลเดอร์ที่ต้องการ
+              - listitem [ref=e78]: ดับเบิลคลิก AirMouse-Receiver.bat
+              - listitem [ref=e79]: อนุญาต Firewall เฉพาะ Private networks
+          - paragraph [ref=e80]: "* แพ็กเกจ Windows ยังไม่ได้รันตรวจบน Windows จริง"
+    - generic [ref=e82]:
+      - paragraph [ref=e83]: CHOOSE YOUR LINK
+      - heading "โหมดเชื่อมต่อ" [level=2] [ref=e84]
+      - table [ref=e86]:
+        - rowgroup [ref=e87]:
+          - row [ref=e88]:
+            - columnheader "โหมด" [ref=e89]
+            - columnheader "ต้องติดตั้งบนเป้าหมายไหม" [ref=e90]
+            - columnheader "สถานะ" [ref=e91]
+        - rowgroup [ref=e92]:
+          - row [ref=e93]:
+            - cell "Wi‑Fi มือถือ → receiver" [ref=e94]: Wi‑Fiมือถือ → receiver
+            - cell "ต้องเปิด receiver บน Mac/Windows" [ref=e95]
+            - cell "พร้อมใช้" [ref=e96]
+          - row [ref=e97]:
+            - cell "ESP32-S3 ดองเกิล USB" [ref=e98]: ESP32-S3ดองเกิล USB
+            - cell "ไม่ต้องติดตั้งบนคอมหลังแฟลชดองเกิล" [ref=e99]
+            - cell "ทดลอง" [ref=e100]
+          - row [ref=e101]:
+            - cell "Bluetooth HID Android → คอม" [ref=e102]: Bluetooth HIDAndroid → คอม
+            - cell "ไม่ต้องติดตั้งบนคอม" [ref=e103]
+            - cell "ทดลอง" [ref=e104]
+    - generic [ref=e105]:
+      - generic [ref=e106]:
+        - paragraph [ref=e107]: WHAT WE MEASURE
+        - heading "เซนเซอร์ที่ใช้" [level=2] [ref=e108]
+      - generic [ref=e109]:
+        - article [ref=e110]:
+          - text: ↻
+          - heading "Gyroscope" [level=3] [ref=e111]
+          - paragraph [ref=e112]: วัดความเร็วการหมุน เป็นข้อมูลหลักสำหรับหันซ้าย‑ขวาและก้ม‑เงย
+        - article [ref=e113]:
+          - text: ⌁
+          - heading "Accelerometer" [level=3] [ref=e114]
+          - paragraph [ref=e115]: ช่วยดูแรงโน้มถ่วงและทิศทางของเครื่องใน sensor fusion
+        - article [ref=e116]:
+          - text: ✦
+          - heading "Touch" [level=3] [ref=e117]
+          - paragraph [ref=e118]: นิ้วแตะค้างคือ clutch เปิด‑ปิดการขยับ แก้ปัญหา drift ได้
+    - generic [ref=e119]:
+      - paragraph [ref=e120]: TROUBLESHOOTING
+      - heading "คำถามที่พบบ่อย" [level=2] [ref=e121]
+      - group [ref=e122]:
+        - generic "เคอร์เซอร์ไม่ขยับ" [ref=e123] [cursor=pointer]
+        - paragraph [ref=e124]: บน macOS ต้องอนุญาต Accessibility ให้ Terminal หรือแอปที่ใช้รัน receiver แล้วลองกดคาลิเบต
+      - group [ref=e125]:
+        - generic "เชื่อมต่อไม่ได้" [ref=e126] [cursor=pointer]
+      - group [ref=e127]:
+        - generic "มีเวอร์ชัน iPhone ไหม?" [ref=e128] [cursor=pointer]
+  - contentinfo [ref=e129]:
+    - generic [ref=e130]:
+      - generic [ref=e131]: AirMouse
+      - generic [ref=e132]: Mini Project 1 · วิชาเซนเซอร์ · KMUTNB
+      - generic [ref=e133]: สร้างเพื่อการเรียนรู้ ไม่ใช่ซอฟต์แวร์เชิงพาณิชย์

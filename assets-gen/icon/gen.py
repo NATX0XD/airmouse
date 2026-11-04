@@ -1,0 +1,33 @@
+def art():
+    return '''
+<g>
+  <circle cx="650" cy="240" r="70" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="12"/>
+  <circle cx="650" cy="240" r="120" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width="10"/>
+  <polygon points="438,477 536,545 714,302 566,198" fill="url(#beam)"/>
+  <g transform="translate(390 650) rotate(35)">
+    <rect x="-100" y="-175" width="200" height="350" rx="48" fill="#fff"/>
+    <rect x="-80" y="-155" width="160" height="310" rx="32" fill="url(#screen)"/>
+    <rect x="-30" y="-142" width="60" height="16" rx="8" fill="#0b0b1e"/>
+    <circle cx="0" cy="40" r="26" fill="#fff" fill-opacity=".9"/>
+  </g>
+  <g transform="translate(650 240) scale(1.15)" filter="url(#sh)">
+    <path d="M0,0 L0,170 L42,132 L72,200 L104,186 L75,120 L130,118 Z" fill="#fff" stroke="#1c1c3a" stroke-opacity=".25" stroke-width="6" stroke-linejoin="round"/>
+  </g>
+</g>'''
+defs = '''<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#0A84FF"/><stop offset=".5" stop-color="#5E5CE6"/><stop offset="1" stop-color="#BF5AF2"/></linearGradient>
+  <radialGradient id="hl" cx=".25" cy=".15" r=".7"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+  <linearGradient id="beam" gradientUnits="userSpaceOnUse" x1="487" y1="511" x2="640" y2="250">
+    <stop offset="0" stop-color="#fff" stop-opacity=".6"/><stop offset="1" stop-color="#64D2FF" stop-opacity=".05"/></linearGradient>
+  <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b1446"/><stop offset="1" stop-color="#3a2a8a"/></linearGradient>
+  <filter id="sh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity=".3"/></filter>
+  <filter id="ish" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#000" flood-opacity=".35"/></filter>
+  <clipPath id="sq"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+</defs>'''
+ios = f'<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024">{defs}<rect width="1024" height="1024" fill="url(#bg)"/><rect width="1024" height="1024" fill="url(#hl)"/>{art()}</svg>'
+mac = f'''<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024">{defs}
+<rect x="100" y="100" width="824" height="824" rx="185" fill="#5E5CE6" filter="url(#ish)"/>
+<g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#bg)"/><rect width="1024" height="1024" fill="url(#hl)"/>
+<g transform="translate(512 512) scale(.805) translate(-512 -512)">{art()}</g></g></svg>'''
+open('icon-ios.svg','w').write(ios); open('icon-mac.svg','w').write(mac)

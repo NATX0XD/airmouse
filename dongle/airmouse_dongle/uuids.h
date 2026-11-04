@@ -1,0 +1,4 @@
+#pragma once
+
+#define AIRMOUSE_SERVICE_UUID "7b0e0001-7d6b-4d9c-9a31-4a2d2f9e0101"
+#define AIRMOUSE_REPORT_UUID "7b0e0002-7d6b-4d9c-9a31-4a2d2f9e0101"

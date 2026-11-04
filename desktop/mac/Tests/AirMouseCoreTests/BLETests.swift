@@ -1,0 +1,56 @@
+import Foundation
+import Testing
+@testable import AirMouseCore
+
+@Suite struct BLETests {
+    func hub() -> (BLEHub<String>, LogOutput) {
+        let out = LogOutput()
+        return (BLEHub<String> { _ in ReceiverSession(output: out, screen: { mbp }) }, out)
+    }
+
+    @Test func jsonPerWriteRoutesToHandler() throws {
+        let (h, out) = hub()
+        let replies = h.received(Data(#"{"t":"hello","v":3,"device":{"name":"Ghost"}}"#.utf8), from: "A")
+        let first = try #require(replies.first)
+        let o = try #require(try JSONSerialization.jsonObject(with: first) as? [String: Any])
+        #expect(o["t"] as? String == "screen" && o["wMm"] as? Double == 302.4)
+        #expect(h.received(Data(#"{"t":"move","dx":2,"dy":1}"#.utf8), from: "A").isEmpty)
+        _ = h.received(Data(#"{"t":"button","b":"left","down":true}"#.utf8), from: "A")
+        _ = h.received(Data(#"{"t":"move","dx":1,"dy":0}"#.utf8), from: "A")
+        _ = h.received(Data("garbage\u{FF}".utf8), from: "A")
+        #expect(out.lines == ["move +2.0 +1.0", "button left down", "drag left +1.0 +0.0"])
+        #expect(h.sessions["A"]?.device?.name == "Ghost")
+    }
+
+    @Test func newlineSeparatedWritesTolerated() {
+        let (h, out) = hub()
+        _ = h.received(Data("{\"t\":\"key\",\"k\":\"left\"}\n{\"t\":\"scroll\",\"dy\":1}".utf8), from: "A")
+        #expect(out.lines == ["key left", "scroll +1"])
+    }
+
+    @Test func subscribeSendsScreenAndDisconnectReleases() {
+        let (h, out) = hub()
+        let r = h.subscribed("B", screen: mbp)
+        #expect(String(decoding: r[0], as: UTF8.self).contains(#""t":"screen""#))
+        _ = h.received(Data(#"{"t":"button","b":"right","down":true}"#.utf8), from: "B")
+        h.disconnected("B")
+        #expect(out.lines == ["button right down", "button right up"])
+        #expect(h.sessions.isEmpty)
+    }
+
+    @Test func peersAreIndependent() {
+        let (h, out) = hub()
+        _ = h.received(Data(#"{"t":"button","b":"left","down":true}"#.utf8), from: "A")
+        _ = h.received(Data(#"{"t":"move","dx":1,"dy":1}"#.utf8), from: "B")
+        #expect(out.lines.last == "move +1.0 +1.0")
+    }
+
+    @Test func localName() {
+        #expect(BLESpec.localName(macName: "Nattakit's MacBook Pro") == "AirMouse-Nattakit")
+        #expect(BLESpec.localName(macName: "Nattakit’s MacBook Air") == "AirMouse-Nattakit")
+        #expect(BLESpec.localName(macName: "") == "AirMouse-Mac")
+        #expect(BLESpec.localName(macName: "Supercalifragilistic Mac").utf8.count <= 20)
+        let thai = BLESpec.localName(macName: "\u{0E13}\u{0E31}\u{0E10} Mac")
+        #expect(thai.allSatisfy(\.isASCII) && thai.hasPrefix("AirMouse-"))
+    }
+}

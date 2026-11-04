@@ -1,0 +1,139 @@
+import Foundation
+import CoreGraphics
+import Testing
+@testable import AirMouseCore
+
+@Suite struct PacerTests {
+    @Test func fractionalMovesDecode() {
+        #expect(ProtocolCodec.decode(#"{"t":"move","dx":0.37,"dy":-1.25}"#) == .move(dx: 0.37, dy: -1.25))
+        #expect(ProtocolCodec.decode(#"{"t":"move","dx":3,"dy":-2}"#) == .move(dx: 3, dy: -2))
+    }
+
+    @Test func factorScalesWithFrameTime() {
+        #expect(abs(MotionPacer.factor(dt: 1.0 / 120) - 0.45) < 1e-12)
+        // one 60 Hz frame = two 120 Hz frames
+        #expect(abs(MotionPacer.factor(dt: 1.0 / 60) - (1 - 0.55 * 0.55)) < 1e-12)
+        #expect(MotionPacer.factor(dt: 0) == 0)
+    }
+
+    @Test func burstyInputIsSpreadAndPreserved() {
+        // Wi-Fi style: 4 frames of nothing, then 4 messages at once (8 pt each) — repeated.
+        var p = MotionPacer()
+        var out: [Double] = []
+        var sent = 0.0
+        for frame in 0..<240 {
+            if frame % 5 == 0, frame < 200 { for _ in 0..<4 { p.add(dx: 8, dy: 0); sent += 8 } }
+            out.append(Double(p.step(dt: 1.0 / 120)?.dx ?? 0))
+        }
+        let total = out.reduce(0, +)
+        #expect(abs(total - sent) < 1e-9)               // no drift, nothing lost
+        #expect(p.isIdle)
+        // Steady state: every frame moves, and no frame carries the whole 32 pt burst.
+        let steady = out[50..<195]
+        #expect(steady.allSatisfy { $0 > 1 }) // never a stopped frame between bursts
+        #expect(steady.max()! < 17) // the 32 pt burst is spread (first frame ~0.45 of pending)
+        let mean = steady.reduce(0, +) / Double(steady.count)
+        #expect(abs(mean - 32.0 / 5) < 0.5)            // average speed preserved
+    }
+
+    @Test func smallRemainderSnapsAndStops() {
+        var p = MotionPacer()
+        p.add(dx: 0.03, dy: -0.02)
+        #expect(p.step(dt: 1.0 / 120) == CGVector(dx: 0.03, dy: -0.02))
+        #expect(p.step(dt: 1.0 / 120) == nil)
+    }
+
+    @Test func diagonalDistancePreservedAt60Hz() {
+        var p = MotionPacer()
+        p.add(dx: 100, dy: -50)
+        var x = 0.0, y = 0.0, frames = 0
+        while let d = p.step(dt: 1.0 / 60) { x += d.dx; y += d.dy; frames += 1 }
+        #expect(abs(x - 100) < 1e-9 && abs(y + 50) < 1e-9)
+        #expect(frames > 3 && frames < 20)
+    }
+
+    @Test func resetDropsPending() {
+        var p = MotionPacer()
+        p.add(dx: 50, dy: 50); p.reset()
+        #expect(p.step(dt: 1.0 / 120) == nil)
+    }
+
+    @Test func frameRateMeter() {
+        var m = FrameRateMeter()
+        for i in 0...240 { m.tick(at: Double(i) / 120) }
+        #expect(abs(m.rate(now: 2.0) - 120) < 1)
+        #expect(m.rate(now: 5) == 0)
+    }
+
+    @Test func moveInterArrivalStats() {
+        var s = MessageStats()
+        #expect(s.moveInterval(now: 0) == nil)
+        for t in [0.0, 0.010, 0.020, 0.070, 0.080] { s.record("move", at: t) }
+        let j = s.moveInterval(now: 0.08)!
+        #expect(abs(j.meanMs - 20) < 1e-6 && abs(j.maxMs - 50) < 1e-6)
+        s.record("move", at: 3.0)  // old gaps leave the 2 s window
+        let k = s.moveInterval(now: 3.0)!
+        #expect(abs(k.maxMs - 2920) < 1e-6)
+        #expect(s.moveInterval(now: 10) == nil)
+    }
+
+    /// Phone sends 4 pt every 1/60 s (240 pt/s). Simulates frames at 120 Hz. Packets in [gapStart, gapStart + gap)
+    /// are held back and delivered at once when the gap ends (AWDL spike). Returns per-frame x output.
+    static func simulate(gap: Double, gapStart: Double = 0.5, stopAt: Double = 1.0) -> (out: [Double], sent: Double) {
+        var p = MotionPacer()
+        var out: [Double] = []
+        var sent = 0.0
+        var held = 0.0
+        var nextPacket = 0.0
+        let frame = 1.0 / 120
+        var t = 0.0
+        while t < stopAt + 1.0 {
+            while nextPacket <= t + 1e-9, nextPacket < stopAt {
+                sent += 4
+                if nextPacket >= gapStart && nextPacket < gapStart + gap { held += 4 } else { p.add(dx: 4, dy: 0) }
+                nextPacket += 1.0 / 60
+            }
+            if held > 0, t >= gapStart + gap { p.add(dx: held, dy: 0); held = 0 }
+            out.append(Double(p.step(dt: frame)?.dx ?? 0))
+            t += frame
+        }
+        return (out, sent)
+    }
+
+    @Test func gapIsBridgedAndTotalPreserved() {
+        let (out, sent) = Self.simulate(gap: 0.15)
+        #expect(abs(out.reduce(0, +) - sent) < 1e-6)              // total equals input
+        #expect(out.allSatisfy { $0 > -1e-9 })                      // never moves backwards
+        // First ~50 ms of the gap: the pointer keeps gliding instead of freezing.
+        let gapFrames = Array(out[61..<66])
+        #expect(gapFrames.allSatisfy { $0 > 0.3 })
+        // Recovery after the burst is spread: no frame jumps like an unpaced 36 pt burst.
+        #expect(out.max()! < 16)
+        // Steady speed before the gap is untouched (2 pt per 120 Hz frame).
+        #expect(abs(out[30..<58].reduce(0, +) / 28 - 2) < 0.2)
+    }
+
+    @Test func glideIsGivenBackWhenThePhoneReallyStopped() {
+        // Phone stops at 0.5 s (no late packets): the glide must be returned, ending exactly where input says.
+        let (out, sent) = Self.simulate(gap: 0, stopAt: 0.5)
+        #expect(abs(out.reduce(0, +) - sent) < 1e-6)
+        let overshoot = out.indices.map { out[0...$0].reduce(0, +) }.max()! - sent
+        #expect(overshoot >= 0 && overshoot < 10)                  // small, temporary
+    }
+
+    @Test func steadyInputDoesNotGlide() {
+        var p = MotionPacer()
+        for f in 0..<120 {
+            if f % 2 == 0 { p.add(dx: 4, dy: 0) }
+            _ = p.step(dt: 1.0 / 120)
+            #expect(!p.isGliding)
+        }
+    }
+
+    @Test func longGapCounter() {
+        var s = MessageStats()
+        for t in [0.0, 0.016, 0.2, 0.216, 0.3, 5.0] { s.record("move", at: t) }  // 184 ms + 84 ms hitches; 4.7 s = a pause
+        #expect(s.longGaps(now: 5.0) == 2)
+        #expect(s.longGaps(now: 70) == 0)
+    }
+}
