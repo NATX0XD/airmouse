@@ -653,6 +653,12 @@ struct AboutPage: View {
                 Button("How It Works", action: model.showHowItWorks).buttonStyle(SoftButtonStyle()).frame(width: 150)
                 Button("Show Tour", action: model.startTour).buttonStyle(SoftButtonStyle()).frame(width: 150)
             }
+            Button(role: .destructive, action: model.confirmReset) {
+                Label("Reset AirMouse…", systemImage: "arrow.counterclockwise")
+                    .foregroundStyle(Theme.error)
+            }
+            .buttonStyle(SoftButtonStyle())
+            .frame(width: 200)
             DiagnosticsSection(model: model).padding(.top, 8)
         }
     }

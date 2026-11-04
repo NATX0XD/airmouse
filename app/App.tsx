@@ -30,6 +30,8 @@ import { usePalette } from './src/ui/tokens';
 import { Toast } from './src/ui/Toast';
 import { CalibrationPrompt } from './src/ui/CalibrationPrompt';
 import { calibrationPaused, calibrationShouldClose } from './src/motion/pause';
+import { eraseAll, PREVIEW_KEY } from './src/setup/reset';
+import { AirMouseBle } from './modules/airmouse-discovery';
 
 type Tab = 'remote' | 'sensors' | 'settings';
 
@@ -52,7 +54,7 @@ type Preview = {
 
 const PREVIEW_ENABLED = __DEV__ || process.env.EXPO_PUBLIC_AIRMOUSE_PREVIEW === '1';
 // Simulator screenshots can also set the query in AsyncStorage (no URL prompt).
-const PREVIEW_KEY = 'airmouse.preview';
+// (key shared with Reset AirMouse, src/setup/reset.ts)
 
 function parsePreview(url: string | null | undefined): Preview | null {
   if (!PREVIEW_ENABLED || !url) return null;
@@ -90,7 +92,7 @@ function savedTarget(s: AppSettings): ConnectTarget | null {
   return null;
 }
 
-function AirMouseApp() {
+function AirMouseApp({ onReset }: { onReset: () => void }) {
   useKeepAwake(); // a remote that sleeps mid-presentation is useless
   const c = usePalette();
   const [tab, setTab] = useState<Tab>('remote');
@@ -400,6 +402,18 @@ function AirMouseApp() {
     AsyncStorage.setItem(FLAG_KEYS.tour, '1').catch(() => {});
   }, []);
 
+  // Reset AirMouse…: drop the link, erase storage, remount the root (fresh
+  // engine, pause latch, settings) so the first-run flow starts with Welcome.
+  const resetAll = useCallback(() => {
+    pendingTarget.current = null;
+    air.disconnect();
+    AirMouseBle?.disconnect();
+    eraseAll(AsyncStorage)
+      .catch(() => AsyncStorage.clear())
+      .catch(() => {})
+      .finally(onReset);
+  }, [air, onReset]);
+
   const finishCalibration = useCallback((r: CalibResult) => {
     const s = settingsRef.current;
     const screen = liveScreen.current ?? { w: s.screenW, h: s.screenH, name: s.screenName };
@@ -487,6 +501,7 @@ function AirMouseApp() {
               macName={macName}
               diagnostics={air.diagnostics}
               onBench={() => air.bench()}
+              onResetAll={resetAll}
               onShowTour={() => {
                 setTab('remote');
                 setTimeout(() => setTour(tourStart()), 400);
@@ -580,11 +595,13 @@ function AirMouseApp() {
 }
 
 export default function App() {
+  const [generation, setGeneration] = useState(0); // bumped by Reset AirMouse…
+  const reset = useCallback(() => setGeneration((g) => g + 1), []);
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
-        <TourProvider>
-          <AirMouseApp />
+        <TourProvider key={generation}>
+          <AirMouseApp onReset={reset} />
         </TourProvider>
       </SafeAreaProvider>
     </ErrorBoundary>

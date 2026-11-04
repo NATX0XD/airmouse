@@ -3,12 +3,13 @@ import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import appJson from '../../app.json';
 import { DEFAULT_SETTINGS, type MotionSettings } from '../motion/engine';
-import { DEFAULT_APP_SETTINGS, type AppSettings, type PointerMode, type TransportKind } from '../settings';
+import type { AppSettings, PointerMode, TransportKind } from '../settings';
 import type { TransportStatus } from '../transport/types';
 import { Card, Icon, IconCircle, LargeTitle, ListRow, PrimaryButton, Section, SegmentedControl, SliderRow, SwitchRow, T, type CircleTone, type SymbolName } from '../ui/components';
 import { roundedFont, space, usePalette } from '../ui/tokens';
 import { TAB_BAR_SPACE } from '../ui/TabBar';
 import { SENS_MAX, SENS_MIN, scaleSpeed } from '../motion/calibration';
+import { RESET_ALERT, RESET_FOOTNOTE } from '../setup/reset';
 import type { Diagnostics } from '../useAirMouse';
 
 type Props = {
@@ -31,6 +32,7 @@ type Props = {
   initialScroll?: number;
   diagnostics?: () => Diagnostics;
   onBench?: () => void;
+  onResetAll?: () => void; // erase everything, start over with Welcome
 };
 
 export function SettingsScreen(props: Props) {
@@ -172,17 +174,22 @@ export function SettingsScreen(props: Props) {
         <Section header="About">
           <ListRow title="Version" value={version} valueRounded />
           <ListRow title="Protocol" value="v3" valueRounded />
-          <ListRow
-            title="Reset All Settings"
-            destructive
-            onPress={() =>
-              Alert.alert('Reset All Settings?', 'Your Mac, speed and calibration will be cleared.', [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Reset', style: 'destructive', onPress: () => onChange(DEFAULT_APP_SETTINGS) },
-              ])
-            }
-          />
         </Section>
+
+        {props.onResetAll ? (
+          <Section footer={RESET_FOOTNOTE}>
+            <ListRow
+              title="Reset AirMouse…"
+              destructive
+              onPress={() =>
+                Alert.alert(RESET_ALERT.title, RESET_ALERT.message, [
+                  { text: RESET_ALERT.confirm, style: 'destructive', onPress: props.onResetAll },
+                  { text: 'Cancel', style: 'cancel' },
+                ])
+              }
+            />
+          </Section>
+        ) : null}
         <T v="footnote" color={c.secondaryLabel} center>
           AirMouse turns your iPhone’s gyroscope into a pointer.
         </T>

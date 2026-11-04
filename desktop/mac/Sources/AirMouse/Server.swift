@@ -55,6 +55,11 @@ final class AirMouseServer {
         tryNextPort()
     }
 
+    /// Drop every phone but keep listening (Reset AirMouse).
+    func disconnectAll() {
+        for c in clients.values { close(c) }
+    }
+
     func stop() {
         listener?.cancel(); listener = nil
         for c in clients.values { close(c) }

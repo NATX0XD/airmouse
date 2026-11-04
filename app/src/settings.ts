@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_SETTINGS, type MotionSettings } from './motion/engine';
 import { migrateMotion, readCalibrated } from './setup/calibrated';
+import { SETTINGS_KEY as KEY } from './setup/reset';
 
 // 'hold' = cursor moves only while a finger is on the pad (clutch).
 // 'always' = cursor always follows the phone; touch the pad to freeze it.
@@ -56,7 +57,6 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   scrollSpeed: 1,
 };
 
-const KEY = 'airmouse.settings.v1';
 
 export async function loadSettings(): Promise<AppSettings> {
   try {

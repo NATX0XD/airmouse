@@ -29,6 +29,9 @@ struct AirMouseApp: App {
         .defaultPosition(.center)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .appSettings) {
+                Button("Reset AirMouse…", action: model.confirmReset)
+            }
             CommandMenu("Pointer") {
                 Button("Calibrate…", action: model.requestCalibration).keyboardShortcut("k")
                 Button("Practice Clicking…", action: model.startPractice).keyboardShortcut("p", modifiers: [.command, .shift])

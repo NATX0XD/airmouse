@@ -238,6 +238,59 @@ final class AppModel {
 
     func showWelcome() { tour = nil; onboarding = OnboardingFlow() }
 
+    // MARK: Reset AirMouse (factory reset, in-process)
+
+    /// Menu / About: confirm, then erase everything and start over at Welcome.
+    func confirmReset() {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Reset AirMouse?"
+        alert.informativeText = "This erases calibration, paired devices, preferences and onboarding progress. AirMouse will start over with Welcome.\n\nSystem permissions stay granted; you can change them in System Settings."
+        let reset = alert.addButton(withTitle: "Reset")
+        reset.hasDestructiveAction = true
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate()
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        resetAll()
+    }
+
+    func resetAll() {
+        // 1. Tell the phones, then drop them (Wi-Fi keeps listening; BLE restarts below).
+        if calibration.visible { broadcast(.calibCancel) }
+        if let g = practice, g.phase != .finished { broadcast(.practice(.stopped)) }
+        practice = nil
+        calibration = CalibrationState()
+        calibEvents = []
+        hideWork?.cancel()
+        overlay?.sync(); practiceOverlay?.sync(); syncVerifyPolling()
+        server?.disconnectAll()
+        phones = []
+        if let ble {
+            ble.stop()
+            self.ble = nil
+            bluetoothStarted = false
+            blePhones = []
+        }
+        // 2. Preferences + files.
+        let defaults = UserDefaults.standard
+        defaults.removePersistentDomain(forName: Bundle.main.bundleIdentifier ?? AppReset.bundleID)
+        defaults.synchronize()
+        if let lib = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first {
+            AppReset.removeData(library: lib)
+        }
+        // 3. In-memory state back to a first launch.
+        lastCalibration = nil
+        banner = nil
+        copied = false
+        tour = nil
+        lastFocus = nil
+        setup = SetupFlow()
+        section = .home
+        onboarding = OnboardingFlow()
+        refreshPermissions(SetupFlow.order)
+        if CBManager.authorization == .allowedAlways { startBluetooth() }
+    }
+
     func showHowItWorks() { tour = nil; onboarding = OnboardingFlow(pages: [.howItWorks]) }
 
     func startTourIfNeeded(after delay: Double = 0.7) {
