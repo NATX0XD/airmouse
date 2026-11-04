@@ -63,6 +63,9 @@ export class NativeBleMacTransport implements Transport {
             }
             ble.send(encode(helloMessage(this.info)));
             this.emit('open');
+          } else if (e.status === 'stalled') {
+            this.isOpen = false; // native drops the link; 'closed' follows and we reconnect
+            this.emit('connecting', 'Bluetooth link stalled, reconnecting…');
           } else if (e.status === 'connecting') {
             this.emit('connecting');
           } else {
@@ -137,7 +140,7 @@ export class NativeBleMacTransport implements Transport {
     }
     if (!r.at || now - r.at >= 500) Object.assign(r, { at: now, writes: s.writes, moves: s.moves });
     return {
-      link: s.open ? 'connected (native)' : 'down',
+      link: s.stalled ? 'stalled (reconnecting)' : s.open ? 'connected (native)' : 'down',
       'write rate': `${r.writeHz} Hz`,
       'move rate': `${r.moveHz} Hz`,
       bench: this.lastBench,
@@ -145,6 +148,8 @@ export class NativeBleMacTransport implements Transport {
       written: s.writes,
       merged: s.merged,
       'waited (buffer full)': s.waits,
+      'with-response fallbacks': s.responseWrites,
+      'ready callbacks': s.readyCallbacks,
       'max write': s.maxWrite,
       'last error': s.lastError,
     };
@@ -176,7 +181,8 @@ export class NativeBleMacTransport implements Transport {
     const s1 = this.stats();
     const sent = s0 && s1 ? Math.round(((s1.moves - s0.moves) / seconds) * 10) / 10 : 0;
     const waits = s0 && s1 ? s1.waits - s0.waits : 0;
-    this.lastBench = `phone ${sent} Hz · Mac received ${mac ? `${mac.hz} Hz` : '?'} · ${waits} waits`;
+    const fallbacks = s0 && s1 ? s1.responseWrites - s0.responseWrites : 0;
+    this.lastBench = `phone ${sent} Hz · Mac received ${mac ? `${mac.hz} Hz` : '?'} · ${waits} waits · ${fallbacks} with-response`;
     return this.lastBench;
   }
 }

@@ -77,12 +77,24 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
   private var hasMove = false
   private var chunk: Data? // rest of a message that did not fit one write
   private var poll: DispatchSourceTimer?
+  // Watchdog: iOS can leave canSendWriteWithoutResponse false and never call
+  // peripheralIsReady (seen on the real link: hello, then nothing). After
+  // NOT_READY_MS the next chunk goes as a write WITH response; its ATT reply
+  // is a completion we can always count on, then without-response resumes.
+  private var awaitingResponse = false
+  private var notReadySince: DispatchTime?
+  private var lastProgress = DispatchTime.now()
+  private var stalled = false
+  private let notReadyNs: UInt64 = 40_000_000
+  private let stallNs: UInt64 = 2_000_000_000
 
   // Counters (Diagnostics / bench).
   private var writes = 0
   private var moves = 0
   private var merged = 0
   private var waits = 0
+  private var responseWrites = 0
+  private var readyCallbacks = 0
   private var lastError = ""
 
   // MARK: JS API (any thread)
@@ -109,6 +121,7 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
   func send(_ text: String) {
     queue.async {
       guard self.open else { return }
+      self.markBusy()
       self.materializeMove() // a move queued before this message goes first
       self.fifo.append(Data((text + "\n").utf8))
       self.pump()
@@ -118,6 +131,7 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
   func sendMove(_ dx: Double, _ dy: Double) {
     queue.async {
       guard self.open else { return }
+      self.markBusy()
       if self.hasMove { self.merged += 1 }
       self.moveX += dx
       self.moveY += dy
@@ -130,12 +144,18 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     queue.sync {
       [
         "open": open, "writes": writes, "moves": moves, "merged": merged, "waits": waits,
-        "queued": fifo.count + (hasMove ? 1 : 0), "maxWrite": maxWrite(), "lastError": lastError,
+        "queued": fifo.count + (hasMove ? 1 : 0) + (chunk == nil ? 0 : 1), "maxWrite": maxWrite(), "lastError": lastError,
+        "responseWrites": responseWrites, "readyCallbacks": readyCallbacks, "stalled": stalled,
       ]
     }
   }
 
   // MARK: sending (queue)
+
+  // Idle -> busy: the stall clock starts now, not at the last write long ago.
+  private func markBusy() {
+    if chunk == nil && fifo.isEmpty && !hasMove && !awaitingResponse { lastProgress = .now() }
+  }
 
   private func maxWrite() -> Int {
     peripheral?.maximumWriteValueLength(for: .withoutResponse) ?? 20
@@ -159,24 +179,54 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
   private func pump() {
     guard open, let p = peripheral, let rx else { return }
     while true {
+      if awaitingResponse { return startPoll() } // the with-response write completes first
       if chunk == nil {
         if fifo.isEmpty { materializeMove() }
         if fifo.isEmpty { break }
         chunk = fifo.removeFirst()
       }
-      guard p.canSendWriteWithoutResponse else {
-        waits += 1
-        startPoll()
-        return
-      }
       let limit = max(20, maxWrite())
       let data = chunk!
-      let part = data.prefix(limit)
-      p.writeValue(Data(part), for: rx, type: .withoutResponse)
-      writes += 1
-      chunk = data.count > limit ? Data(data.dropFirst(limit)) : nil
+      let part = Data(data.prefix(limit))
+      let rest: Data? = data.count > limit ? Data(data.dropFirst(limit)) : nil
+      if p.canSendWriteWithoutResponse {
+        notReadySince = nil
+        p.writeValue(part, for: rx, type: .withoutResponse)
+        writes += 1
+        lastProgress = .now()
+        chunk = rest
+        continue
+      }
+      let now = DispatchTime.now()
+      if notReadySince == nil {
+        notReadySince = now
+        waits += 1
+      }
+      if let since = notReadySince, now.uptimeNanoseconds - since.uptimeNanoseconds >= notReadyNs, rx.properties.contains(.write) {
+        notReadySince = nil
+        awaitingResponse = true
+        responseWrites += 1
+        p.writeValue(part, for: rx, type: .withResponse)
+        writes += 1
+        chunk = rest
+      }
+      return startPoll()
     }
     stopPoll()
+  }
+
+  // Every 10 ms while something is pending: retry the pump, catch a stall.
+  private func tick() {
+    let pending = chunk != nil || !fifo.isEmpty || hasMove || awaitingResponse
+    if pending, DispatchTime.now().uptimeNanoseconds - lastProgress.uptimeNanoseconds > stallNs {
+      stalled = true
+      lastError = "stalled: no write completed for 2 s"
+      status("stalled", lastError)
+      if let p = peripheral { central.cancelPeripheralConnection(p) } // didDisconnect -> closed -> JS reconnects
+      stopPoll()
+      return
+    }
+    pump()
   }
 
   // Safety net in case peripheralIsReady is not delivered.
@@ -184,7 +234,7 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     guard poll == nil else { return }
     let t = DispatchSource.makeTimerSource(queue: queue)
     t.schedule(deadline: .now() + .milliseconds(10), repeating: .milliseconds(10))
-    t.setEventHandler { [weak self] in self?.pump() }
+    t.setEventHandler { [weak self] in self?.tick() }
     t.resume()
     poll = t
   }
@@ -196,6 +246,8 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
   private func reset() {
     open = false
+    awaitingResponse = false
+    notReadySince = nil
     rx = nil
     peripheral = nil
     fifo.removeAll()
@@ -321,6 +373,8 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
       return central.cancelPeripheralConnection(p)
     }
     open = true
+    stalled = false
+    lastProgress = .now()
     status("open", nil, id: p.identifier.uuidString)
     pump()
   }
@@ -331,6 +385,15 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
   }
 
   func peripheralIsReady(toSendWriteWithoutResponse p: CBPeripheral) {
+    readyCallbacks += 1
+    pump()
+  }
+
+  // Completion of a with-response write (the watchdog path).
+  func peripheral(_ p: CBPeripheral, didWriteValueFor ch: CBCharacteristic, error: Error?) {
+    guard ch.uuid == rxUUID else { return }
+    awaitingResponse = false
+    if let error { lastError = error.localizedDescription } else { lastProgress = .now() }
     pump()
   }
 }

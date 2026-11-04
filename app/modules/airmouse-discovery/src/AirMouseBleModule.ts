@@ -1,11 +1,23 @@
 import { NativeModule, requireOptionalNativeModule } from 'expo';
 
 type Events = {
-  onBleStatus: (e: { status: 'connecting' | 'open' | 'closed' | 'error'; detail?: string; id?: string }) => void;
+  onBleStatus: (e: { status: 'connecting' | 'open' | 'closed' | 'error' | 'stalled'; detail?: string; id?: string }) => void;
   onBleMessage: (e: { text: string }) => void;
 };
 
-export type NativeBleStats = { open: boolean; writes: number; moves: number; merged: number; waits: number; queued: number; maxWrite: number; lastError: string };
+export type NativeBleStats = {
+  open: boolean;
+  writes: number;
+  moves: number;
+  merged: number;
+  waits: number;
+  queued: number;
+  maxWrite: number;
+  lastError: string;
+  responseWrites: number; // watchdog writes with response
+  readyCallbacks: number; // peripheralIsReady deliveries
+  stalled: boolean;
+};
 
 declare class AirMouseBleModule extends NativeModule<Events> {
   connect(id: string, name: string): void;
