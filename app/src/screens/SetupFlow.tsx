@@ -1,3 +1,4 @@
+import { dark, ForceDark , radius, space } from '../ui/tokens';
 import { useEffect, useRef, useState } from 'react';
 import { LayoutAnimation, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,7 +7,6 @@ import { actionsFor, startAt, STEPS, stepCompleted, type PermissionId, type Perm
 import { Icon, IconCircle, Material, PrimaryButton, SecondaryButton, StepRing, T, Tag, type CircleTone, type SymbolName } from '../ui/components';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Illustration } from '../ui/Illustration';
-import { radius, space, usePalette } from '../ui/tokens';
 
 // Same pattern as the Mac "Permissions" page: progress ring, checklist rows
 // (icon circle, title, Required/Optional tag, live status), current row
@@ -69,7 +69,7 @@ type Props = {
 };
 
 export function SetupFlow(p: Props) {
-  const c = usePalette();
+  const c = dark; // fixed dark background
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState<number>(p.startStep ? startAt(p.startStep).index : 0);
   const done = STEPS.filter((s) => stepCompleted(s, p.statuses[s.id])).length;
@@ -103,6 +103,7 @@ export function SetupFlow(p: Props) {
 
   return (
     <Modal visible={p.visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={p.onDone}>
+      <ForceDark>
       <LinearGradient colors={['#090B2A', '#24135A', '#100D36']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.root, { paddingTop: insets.top + space.sm }]}> 
         <ScrollView contentContainerStyle={styles.content}>
           <Illustration name={open === 0 ? 'calib-place' : 'calib-done'} width={190} height={130} />
@@ -186,6 +187,7 @@ export function SetupFlow(p: Props) {
           <SecondaryButton title="Skip for Now" plain onPress={p.onDone} style={all && { opacity: 0 }} disabled={all} />
         </View>
       </LinearGradient>
+    </ForceDark>
     </Modal>
   );
 }

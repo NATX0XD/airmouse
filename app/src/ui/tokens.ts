@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Platform, useColorScheme, type TextStyle } from 'react-native';
 
 // Design tokens, docs/spec-v3.md section 1. Neutrals are the iOS system colours
@@ -50,7 +50,7 @@ const light: Palette = {
   onTint: '#FFFFFF',
 };
 
-const dark: Palette = {
+export const dark: Palette = {
   dark: true,
   background: '#000000',
   grouped: '#000000',
@@ -73,8 +73,18 @@ const dark: Palette = {
   onTint: '#FFFFFF',
 };
 
+// Screens drawn on a fixed dark background (Welcome, Setup) force the dark
+// palette so text stays light even when the phone is in Light Mode.
+const SchemeOverride = createContext<'dark' | 'light' | null>(null);
+
+export function ForceDark(p: { children: ReactNode }) {
+  return createElement(SchemeOverride.Provider, { value: 'dark' }, p.children);
+}
+
 export function usePalette(): Palette {
-  return useColorScheme() === 'dark' ? dark : light;
+  const forced = useContext(SchemeOverride);
+  const system = useColorScheme();
+  return (forced ?? system) === 'dark' ? dark : light;
 }
 
 // Brand gradient "Aurora", 135° (top-left to bottom-right).

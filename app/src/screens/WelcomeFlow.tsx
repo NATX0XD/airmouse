@@ -1,3 +1,4 @@
+import { dark, ForceDark , radius, space, usePalette, useReduceMotion } from '../ui/tokens';
 import { useEffect, useState } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, View, useAnimatedValue, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,12 +7,11 @@ import { ExplainerFlow } from './ExplainerFlow';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CIRCLE_GRADIENTS, Icon, IconCircle, Material, PrimaryButton, T, type CircleTone, type SymbolName } from '../ui/components';
 import { Illustration } from '../ui/Illustration';
-import { radius, space, usePalette, useReduceMotion } from '../ui/tokens';
 
 type Props = { visible: boolean; startPage?: number; onDone: () => void; addGyroListener?: (cb: (sample: import('../motion/engine').GyroSample) => void) => () => void };
 
 export function WelcomeFlow(p: Props) {
-  const c = usePalette();
+  const c = dark; // fixed dark background
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
   const { width } = useWindowDimensions();
@@ -43,6 +43,7 @@ export function WelcomeFlow(p: Props) {
 
   return (<>
     <Modal visible={p.visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={p.onDone}>
+      <ForceDark>
       <LinearGradient colors={['#090B2A', '#24135A', '#100D36']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.root, { paddingTop: insets.top + space.sm, paddingBottom: insets.bottom + space.lg }]}> 
         <View pointerEvents="none" style={[styles.orb, styles.orbBlue]} />
         <View pointerEvents="none" style={[styles.orb, styles.orbPurple]} />
@@ -130,6 +131,7 @@ export function WelcomeFlow(p: Props) {
         <PrimaryButton title={page === 'getMac' ? 'I Already Have It' : 'Continue'} onPress={next} />
         <ExplainerFlow visible={explainerOpen} onDone={explainerDone} addGyroListener={p.addGyroListener} />
       </LinearGradient>
+    </ForceDark>
     </Modal>
   </>);
 }
