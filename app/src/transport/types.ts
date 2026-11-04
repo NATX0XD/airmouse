@@ -57,4 +57,6 @@ export interface Transport {
   send(msg: Msg): boolean | void;
   onStatus(cb: (s: TransportStatus, detail?: string) => void): () => void;
   onMessage?(cb: (m: InboundMsg) => void): () => void;
+  // Settings > Diagnostics, transports that have something to say (Bluetooth).
+  debugStats?(): Record<string, string | number>;
 }

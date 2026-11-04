@@ -39,6 +39,7 @@ export type Diagnostics = {
   lastDx: number;
   lastDy: number;
   lastMoveAgoMs: number | null;
+  link: Record<string, string | number> | null; // transport counters (Bluetooth)
 };
 
 export function deviceInfo(): DeviceInfo {
@@ -284,6 +285,7 @@ export function useAirMouse(settings: AppSettings, options: Options = {}) {
       lastDx: st.lastDx,
       lastDy: st.lastDy,
       lastMoveAgoMs: st.lastMoveAt ? Date.now() - st.lastMoveAt : null,
+      link: transport.current?.debugStats?.() ?? null,
     };
   }, []);
 

@@ -202,36 +202,74 @@ struct PermissionsPage: View {
     var assistant = false
 
     var body: some View {
-        let flow = model.setup
-        let done = flow.steps.filter(flow.isSatisfied).count
-        Page(title: assistant ? "Set up AirMouse" : "Permissions",
-             subtitle: assistant ? "Allow these permissions so AirMouse can move the pointer and connect to your iPhone." : "AirMouse needs a few permissions to control the pointer and talk to your iPhone.") {
-            if assistant {
-                VStack(spacing: 8) {
-                    AppIllustration(name: "iphone-remote", fallback: "iphone")
-                        .frame(width: 132, height: 108)
-                    Text("Almost ready")
-                        .font(.title2.weight(.semibold))
-                    Text("AirMouse needs access to control your Mac and find your iPhone.")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, 4)
-            }
-            ProgressHeader(done: done, total: flow.steps.count, ready: flow.allRequiredGranted)
-            VStack(spacing: 12) {
-                ForEach(Array(flow.steps.enumerated()), id: \.element) { i, k in
-                    PermissionStepRow(model: model, kind: k, number: i + 1, expanded: flow.current == k)
-                        .card(tint: flow.status(k) == .granted ? Theme.success : (flow.current == k ? k.color : nil))
-                }
-            }
-            .padding(.vertical, 4)
-            .frame(maxWidth: .infinity)
-            Text("Status updates by itself while this page is open.")
-                .font(.system(size: 12)).foregroundStyle(.tertiary)
+        Group {
+            if assistant { assistantLayout } else { regularLayout }
         }
-        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: model.setup.index)
+        .animation(.spring(response: 0.35, dampingFraction: 0.86), value: model.setup.index)
+    }
+
+    private var assistantLayout: some View {
+        VStack(spacing: 10) {
+            AppIllustration(name: "iphone-remote", fallback: "iphone").frame(width: 126, height: 104)
+            VStack(spacing: 3) {
+                Text("Set up AirMouse").font(.system(size: 25, weight: .bold))
+                Text("Allow access so AirMouse can move the pointer and connect to your iPhone.")
+                    .font(.system(size: 13)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            }
+            VStack(spacing: 0) {
+                ForEach(Array(model.setup.steps.enumerated()), id: \.element) { index, kind in
+                    CompactPermissionRow(model: model, kind: kind)
+                    if index < model.setup.steps.count - 1 { Divider().padding(.leading, 48) }
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 3)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.regularMaterial))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 0.5))
+            Text("Status updates automatically while this page is open.")
+                .font(.system(size: 11)).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 34).padding(.top, 12).padding(.bottom, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var regularLayout: some View {
+        let flow = model.setup
+        return Page(title: "Permissions", subtitle: "AirMouse needs access to control the pointer and connect to your iPhone.") {
+            VStack(spacing: 0) {
+                ForEach(Array(flow.steps.enumerated()), id: \.element) { index, kind in
+                    CompactPermissionRow(model: model, kind: kind)
+                    if index < flow.steps.count - 1 { Divider().padding(.leading, 48) }
+                }
+            }
+            .padding(.horizontal, 12).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+    }
+}
+
+private struct CompactPermissionRow: View {
+    var model: AppModel
+    var kind: PermissionKind
+
+    var body: some View {
+        let status = model.setup.status(kind)
+        let granted = model.setup.isSatisfied(kind)
+        HStack(spacing: 10) {
+            PermissionIcon(kind: kind, size: 26)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(kind.name).font(.system(size: 13, weight: .semibold))
+                Text(kind.why).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            if granted {
+                Image(systemName: "checkmark.circle.fill").font(.system(size: 18)).foregroundStyle(Theme.success)
+            } else if status == .checking || status == .notDetermined {
+                ProgressView().controlSize(.small)
+            } else {
+                Button("Allow…") { model.grant(kind) }
+                    .buttonStyle(.bordered).controlSize(.small)
+            }
+        }
+        .padding(.vertical, 7)
     }
 }
 

@@ -7,8 +7,16 @@ import type { DeviceInfo, InboundMsg, Msg, Transport, TransportStatus } from './
 
 export type BluetoothMac = { id: string; name: string };
 
-const MOVE_TIMEOUT_MS = 120; // a move older than this is stale anyway
-const WRITE_TIMEOUT_MS = 1500;
+// Every write is a write WITH response (ATT reply), moves included.
+// Write-without-response deadlocked: ble-plx only writes once
+// canSendWriteWithoutResponse is true and otherwise waits for
+// peripheralIsReady(toSendWriteWithoutResponse:), but CoreBluetooth only
+// sends that after a write was attempted while not ready. Once the buffer
+// filled (a few moves into real motion) nothing was ever written again.
+// With response there is always a completion; one write is in flight and
+// moves arriving meanwhile merge in the outbox (~30-60 Hz on a 15-30 ms
+// connection interval).
+const WRITE_TIMEOUT_MS = 1000;
 
 export const displayName = (advertised: string | null | undefined): string => {
   const n = (advertised ?? '').trim();
@@ -58,7 +66,7 @@ export class BleMacTransport implements Transport {
   private paceTimer: ReturnType<typeof setTimeout> | null = null;
   private lastMoveAt = 0;
   // Debug counters (writes, errors, timeouts).
-  stats = { writes: 0, errors: 0, timeouts: 0, lastError: '', mtu: 0 };
+  stats = { writes: 0, errors: 0, timeouts: 0, lastError: '', mtu: 0, inFlight: 0 };
   private tx = 0;
   private retry: ReturnType<typeof setTimeout> | null = null;
   private subs: Subscription[] = [];
@@ -122,7 +130,7 @@ export class BleMacTransport implements Transport {
         return;
       }
       await d.discoverAllServicesAndCharacteristics();
-      this.stats.mtu = d.mtu;
+      this.stats.mtu = d.mtu; // stale on iOS right after connect (23); bluetoothd shows the real one
       this.device = d;
       this.subs.push(
         d.onDisconnected(() => {
@@ -194,6 +202,11 @@ export class BleMacTransport implements Transport {
     this.emit('idle');
   }
 
+  debugStats() {
+    const s = this.stats;
+    return { link: this.device ? 'connected' : 'down', queued: this.outbox.size, 'in flight': s.inFlight, written: s.writes, failed: s.errors, timeouts: s.timeouts, 'last error': s.lastError };
+  }
+
   send(msg: Msg): boolean {
     if (!this.device) return false;
     this.outbox.push(msg);
@@ -201,22 +214,18 @@ export class BleMacTransport implements Transport {
     return true;
   }
 
-  // ble-plx waits for CoreBluetooth's "ready to send" signal (without
-  // response) or the ATT reply (with response) with no timeout. If that
-  // signal is missed, the promise never settles and every later write
-  // queues behind it: still connected, but the pointer stops. Bound it.
-  private write(d: Device, value: string, withResponse: boolean): Promise<unknown> {
+  // ble-plx has no timeout of its own: a lost ATT reply would hold the queue
+  // forever. Bound it and move on.
+  private write(d: Device, value: string): Promise<unknown> {
     const id = `am-w${++this.tx}`;
-    const op = withResponse
-      ? d.writeCharacteristicWithResponseForService(MAC_SERVICE_UUID, MAC_RX_UUID, value, id)
-      : d.writeCharacteristicWithoutResponseForService(MAC_SERVICE_UUID, MAC_RX_UUID, value, id);
+    const op = d.writeCharacteristicWithResponseForService(MAC_SERVICE_UUID, MAC_RX_UUID, value, id);
     let timer: ReturnType<typeof setTimeout> | null = null;
     const limit = new Promise((_, reject) => {
       timer = setTimeout(() => {
         this.stats.timeouts += 1;
         getBleManager().cancelTransaction(id);
-        reject(new Error(withResponse ? 'write timed out' : 'not ready to send'));
-      }, withResponse ? WRITE_TIMEOUT_MS : MOVE_TIMEOUT_MS);
+        reject(new Error('write timed out'));
+      }, WRITE_TIMEOUT_MS);
     });
     return Promise.race([op, limit]).finally(() => timer && clearTimeout(timer));
   }
@@ -246,12 +255,15 @@ export class BleMacTransport implements Transport {
         const value = frame(head);
         try {
           if (head.t === 'move') this.lastMoveAt = Date.now();
-          await this.write(d, value, head.t !== 'move');
+          this.stats.inFlight = 1;
+          await this.write(d, value);
           this.stats.writes += 1;
         } catch (e) {
           // The message is dropped, the loop goes on; a lost link is handled by onDisconnected.
           this.stats.errors += 1;
           this.stats.lastError = e instanceof Error ? e.message : String(e);
+        } finally {
+          this.stats.inFlight = 0;
         }
       }
     } finally {

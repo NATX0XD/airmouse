@@ -97,12 +97,14 @@ struct RootView: View {
     private var split: some View {
         NavigationSplitView {
             List(selection: $model.section) {
-                Section("AirMouse") {
+                Section {
                     ForEach(AppSection.allCases, id: \.self) { s in
                         SidebarRow(section: s, selected: model.section, requiredMissing: requiredMissing)
                             .tag(s)
                             .modifier(TourRowMarker(section: s))
                     }
+                } header: {
+                    SidebarHeader()
                 }
             }
             .listStyle(.sidebar)
@@ -168,15 +170,36 @@ private struct TourRowMarker: ViewModifier {
 private struct SidebarStatus: View {
     var model: AppModel
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 9) {
             Circle().fill(model.isConnected ? Theme.success : Theme.warning).frame(width: 8, height: 8)
-            Text(model.isConnected ? (model.primaryPhone?.name ?? "iPhone") : "Not connected")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Spacer()
+            VStack(alignment: .leading, spacing: 1) {
+                Text(model.isConnected ? "Connected" : "Waiting for iPhone")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(model.isConnected ? (model.primaryPhone?.name ?? "iPhone") : "Open AirMouse on iPhone")
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 18).padding(.vertical, 12)
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 0.5))
+        .padding(.horizontal, 10).padding(.vertical, 8)
+    }
+}
+
+private struct SidebarHeader: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            AppIconArt(size: 30, withMargin: false)
+                .frame(width: 30, height: 30)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("AirMouse").font(.system(size: 13, weight: .semibold))
+                Text("Mac controller").font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 5)
     }
 }
 
@@ -216,22 +239,10 @@ struct HomePage: View {
     var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .center, spacing: 18) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("AirMouse").font(.largeTitle.weight(.bold))
-                    Label(model.isConnected ? "iPhone connected" : "Waiting for iPhone", systemImage: model.isConnected ? "checkmark.circle.fill" : "circle.dashed")
-                        .font(.subheadline).foregroundStyle(model.isConnected ? Theme.success : .secondary)
-                }
-                Spacer()
-                Button(action: model.requestCalibration) { Label("Calibrate", systemImage: "scope") }
-                    .buttonStyle(.borderedProminent).controlSize(.large)
-                    .tint(Theme.indigo)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.aurora).opacity(0.18))
-                    .tourTarget(.calibrate)
-            }
+        VStack(alignment: .leading, spacing: 12) {
+            ConnectionHero(model: model)
             if let banner = model.banner { BannerRow(text: banner) }
-            Grid(horizontalSpacing: 12, verticalSpacing: 12) {
+            Grid(horizontalSpacing: 12, verticalSpacing: 10) {
                 GridRow {
                     DashboardCard(title: "Connection", caption: model.isConnected ? "Connected and ready" : "Waiting for iPhone…", image: "waves", fallback: "wifi") {
                         StatusLine(symbol: "wifi", label: "Wi-Fi", value: model.port == nil ? "Starting…" : (model.isConnected ? "Connected" : "Listening"), tint: Theme.cyan)
@@ -257,13 +268,13 @@ struct HomePage: View {
                     DashboardCard(title: "Permissions", caption: model.setup.warnings.isEmpty ? "Everything is ready" : "1 needs attention", image: "shield-check", fallback: "lock.shield.fill") {
                         StatusLine(symbol: model.setup.warnings.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill", label: model.setup.warnings.isEmpty ? "All systems go" : "Review setup", value: "", tint: model.setup.warnings.isEmpty ? Theme.success : Theme.warning)
                         Button("Review", action: { model.openSetup() }).buttonStyle(.bordered).controlSize(.large)
-                    }
+                    }.gridCellColumns(2)
                 }
             }
             .frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, 28).padding(.vertical, 20)
-        .frame(maxWidth: 700, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.horizontal, 22).padding(.vertical, 16)
+        .frame(maxWidth: 760, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(nsColor: .windowBackgroundColor))
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: model.banner)
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: model.setup.warnings)
@@ -275,18 +286,101 @@ struct HomePage: View {
     private var bleLabel: String { switch model.bluetooth { case .off: "Off"; case .advertising: "Available"; case .connected: "Connected" } }
 }
 
+private struct ConnectionHero: View {
+    var model: AppModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulse = false
+
+    var body: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                Circle().stroke((model.isConnected ? Theme.success : Theme.blue).opacity(0.22), lineWidth: 2)
+                    .frame(width: 78, height: 78)
+                    .scaleEffect(pulse && !reduceMotion ? 1.08 : 1)
+                Circle().fill(model.isConnected ? Theme.success.opacity(0.16) : Theme.blue.opacity(0.12))
+                    .frame(width: 58, height: 58)
+                Image(systemName: model.isConnected ? "iphone.gen3" : "iphone")
+                    .font(.system(size: 27, weight: .semibold))
+                    .foregroundStyle(model.isConnected ? Theme.success : Theme.blue)
+            }
+            VStack(alignment: .leading, spacing: 5) {
+                Text(model.isConnected ? "Connected to \(model.primaryPhone?.name ?? "iPhone")" : "Waiting for your iPhone")
+                    .font(.system(size: 21, weight: .bold))
+                    .lineLimit(1).minimumScaleFactor(0.75)
+                if model.isConnected {
+                    HStack(spacing: 12) {
+                        Label(model.primaryViaBluetooth ? "Bluetooth" : "Wi-Fi", systemImage: model.primaryViaBluetooth ? "dot.radiowaves.left.and.right" : "wifi")
+                        Label(String(format: "%.0f moves/s", model.rate), systemImage: "waveform.path.ecg")
+                        DiagnosticsBadge(model: model)
+                    }
+                    .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                } else {
+                    Text("Open AirMouse on your iPhone to start moving the pointer.")
+                        .font(.system(size: 13)).foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 8)
+            if model.isConnected {
+                HStack(spacing: 8) {
+                    Button("Calibrate", action: model.requestCalibration).buttonStyle(.borderedProminent).controlSize(.regular).tourTarget(.calibrate)
+                    Button("Practice", action: model.startPractice).buttonStyle(.bordered).controlSize(.regular)
+                    Button("Center Cursor", action: model.centerCursor).buttonStyle(.bordered).controlSize(.regular)
+                }
+            } else {
+                Button("Pair", action: { model.section = .pair }).buttonStyle(.borderedProminent).controlSize(.regular).tourTarget(.pairRow)
+            }
+        }
+        .padding(16)
+        .background {
+            let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+            shape.fill(model.isConnected ? AnyShapeStyle(Theme.aurora.opacity(0.16)) : AnyShapeStyle(.regularMaterial))
+                .overlay { shape.strokeBorder(model.isConnected ? Theme.indigo.opacity(0.32) : Color.primary.opacity(0.08), lineWidth: 0.5) }
+        }
+        .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: model.isConnected)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) { pulse = true }
+        }
+    }
+}
+
+private struct DiagnosticsBadge: View {
+    var model: AppModel
+    var body: some View {
+        let peer = model.diagnostics().peers.first
+        let interval = peer?.stats.moveInterval(now: model.diagnostics().now)
+        let jitter = interval.map { max(0, $0.maxMs - $0.meanMs) } ?? 0
+        HStack(spacing: 4) {
+            Circle().fill(jitter > 35 ? Theme.warning : Theme.success).frame(width: 6, height: 6)
+            Text(interval.map { String(format: "%.0f ms · %.0f jitter", $0.meanMs, jitter) } ?? "— latency")
+        }
+    }
+}
+
 private struct DashboardCard<Content: View>: View {
     var title: String; var caption: String; var image: String; var fallback: String; @ViewBuilder var content: () -> Content
+    @State private var hovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack { VStack(alignment: .leading, spacing: 3) { Text(title).font(.system(size: 17, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.78); Text(caption).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.72) }; Spacer(minLength: 4) }
-            content().frame(maxWidth: .infinity, alignment: .leading)
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.system(size: 16, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.78)
+                    Text(caption).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.72)
+                }
+                content().frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Spacer(minLength: 2)
+            AppIllustration(name: image, fallback: fallback).frame(width: 62, height: 62).allowsHitTesting(false)
         }
-        .padding(14).frame(minHeight: 118, alignment: .bottomLeading)
+        .padding(13).frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous).fill(.regularMaterial))
         .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.08), radius: 10, y: 3)
-        .overlay(alignment: .topTrailing) { AppIllustration(name: image, fallback: fallback).frame(width: 80, height: 80).padding(10).allowsHitTesting(false) }
+        .shadow(color: .black.opacity(hovering ? 0.14 : 0.08), radius: hovering ? 14 : 10, y: hovering ? 5 : 3)
+        .scaleEffect(hovering && !reduceMotion ? 1.01 : 1)
+        .animation(.spring(response: 0.2, dampingFraction: 0.8), value: hovering)
+        .onHover { hovering = $0 }
     }
 }
 

@@ -81,14 +81,24 @@ struct OverlayView: View {
                         .frame(width: 900)
                         .position(x: geo.size.width / 2, y: geo.size.height * 0.27)
                         .transition(.opacity.combined(with: .offset(y: -12)))
+                } else if state.step == .verify && state.everLit.count >= Side.fourCorners.count {
+                    VerifyCompleteBanner()
+                        .frame(width: 760)
+                        .position(x: geo.size.width / 2, y: geo.size.height * 0.27)
+                        .transition(.scale(scale: 0.85).combined(with: .opacity))
                 } else if state.step == .verify {
                     InstructionBlock(number: 3, title: "Check Your Pointer",
                                      message: "Point at each dot. They light up when the cursor touches them.",
                                      alignment: .center) {
-                        Text("\(state.everLit.count) of 5 reached")
-                            .font(.system(size: 17, weight: .semibold, design: .rounded).monospacedDigit())
-                            .foregroundStyle(state.everLit.count == 5 ? Theme.success : Theme.cyan)
-                            .contentTransition(.numericText())
+                        VStack(spacing: 8) {
+                            Text("\(state.everLit.count) of 5 reached")
+                                .font(.system(size: 17, weight: .semibold, design: .rounded).monospacedDigit())
+                                .foregroundStyle(Theme.cyan)
+                                .contentTransition(.numericText())
+                            Label("When you’re happy, tap Done on your iPhone.", systemImage: "iphone")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.6))
+                        }
                     }
                         .frame(width: 640)
                         .position(x: geo.size.width / 2, y: geo.size.height * 0.27)
@@ -113,6 +123,7 @@ struct OverlayView: View {
             .animation(.spring(response: 0.5, dampingFraction: 0.85), value: state.step)
             .animation(.spring(response: 0.45, dampingFraction: 0.8), value: state.pointed)
             .animation(.spring(response: 0.3, dampingFraction: 0.75), value: state.lit)
+            .animation(.spring(response: 0.55, dampingFraction: 0.72), value: state.everLit.count >= Side.fourCorners.count)
         }
         .ignoresSafeArea()
     }
@@ -510,6 +521,40 @@ struct TurnGuide: View {
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(Theme.cyan.opacity(0.6))
                 .position(x: (a.x + b.x) / 2, y: a.y)
+        }
+    }
+}
+
+// MARK: - Verify complete (5/5): the phone auto-sends `done` ~3 s later
+
+struct VerifyCompleteBanner: View {
+    @State private var pop = false
+    @Environment(\.stillFrameTime) private var still
+
+    var body: some View {
+        let shown = still != nil || pop
+        VStack(spacing: 16) {
+            ZStack {
+                Circle().fill(Theme.success.opacity(0.3)).frame(width: 150, height: 150).blur(radius: 28)
+                    .scaleEffect(shown ? 1 : 0.5)
+                Circle().fill(LinearGradient(colors: [Color(hex: 0x4BE37A), Theme.success], startPoint: .top, endPoint: .bottom))
+                    .frame(width: 96, height: 96)
+                    .shadow(color: Theme.success.opacity(0.6), radius: 18)
+                    .scaleEffect(shown ? 1 : 0.3)
+                Image(systemName: "checkmark").font(.system(size: 44, weight: .bold)).foregroundStyle(.white)
+                    .scaleEffect(shown ? 1 : 0.2)
+            }
+            Text("Calibration Complete")
+                .font(.system(size: 48, weight: .bold))
+                .foregroundStyle(.white)
+            Text("Tap Done on your iPhone, or it will finish automatically.")
+                .font(.system(size: 21))
+                .foregroundStyle(.white.opacity(0.72))
+                .multilineTextAlignment(.center)
+        }
+        .onAppear {
+            guard still == nil else { return }
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { pop = true }
         }
     }
 }

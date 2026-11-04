@@ -32,13 +32,23 @@ struct Illustration: View {
 struct AppIllustration: View {
     var name: String
     var fallback: String
+    @State private var floating = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        if let dir = Bundle.main.resourceURL?.appendingPathComponent("Illustrations"),
-           let image = NSImage(contentsOf: dir.appendingPathComponent("\(name).png")) {
-            Image(nsImage: image).resizable().aspectRatio(contentMode: .fit)
-        } else {
-            Image(systemName: fallback).resizable().aspectRatio(contentMode: .fit)
-                .symbolRenderingMode(.hierarchical).foregroundStyle(Theme.cyan, Theme.purple)
+        Group {
+            if let dir = Bundle.main.resourceURL?.appendingPathComponent("Illustrations"),
+               let image = NSImage(contentsOf: dir.appendingPathComponent("\(name).png")) {
+                Image(nsImage: image).resizable().aspectRatio(contentMode: .fit)
+            } else {
+                Image(systemName: fallback).resizable().aspectRatio(contentMode: .fit)
+                    .symbolRenderingMode(.hierarchical).foregroundStyle(Theme.cyan, Theme.purple)
+            }
+        }
+        .offset(y: floating && !reduceMotion ? -2 : 0)
+        .animation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true), value: floating)
+        .onAppear {
+            guard !reduceMotion else { return }
+            floating = true
         }
     }
 }
@@ -289,35 +299,37 @@ private struct HowItWorksPage: View {
 private struct GetIPhonePage: View {
     var model: AppModel
     var body: some View {
-        HStack(spacing: 40) {
-            AppIllustration(name: "iphone-remote", fallback: "iphone").frame(width: 190, height: 280)
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Get AirMouse on Your iPhone").font(.system(size: 28, weight: .bold))
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("Install AirMouse on your iPhone, then open it.")
-                    .font(.system(size: 17)).foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 10) {
-                    NumberedLine(n: 1, text: "Install AirMouse on your iPhone")
-                    NumberedLine(n: 2, text: "Open it and allow Local Network")
-                    NumberedLine(n: 3, text: "Pick “\(model.macName)” or scan the QR code")
-                }
-                .padding(.top, 4)
-                HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 64, height: 64)
-                        .overlay(Image(systemName: "qrcode").font(.system(size: 24)).foregroundStyle(.tertiary))
-                    Text("Download link coming soon. For now AirMouse is installed from Xcode.")
-                        .font(.system(size: 12)).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(.top, 6)
+        VStack(spacing: 12) {
+            AppIllustration(name: "iphone-remote", fallback: "iphone")
+                .frame(width: 170, height: 170)
+                .padding(.top, 2)
+            Text("Get AirMouse on Your iPhone")
+                .font(.system(size: 28, weight: .bold))
+                .multilineTextAlignment(.center)
+            Text("Install AirMouse on your iPhone, then open it.")
+                .font(.system(size: 15)).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                NumberedLine(n: 1, text: "Install AirMouse on your iPhone")
+                NumberedLine(n: 2, text: "Open it and allow Local Network")
+                NumberedLine(n: 3, text: "Choose “\(model.macName)” under Nearby")
             }
-            .frame(maxWidth: 360, alignment: .leading)
-            .card()
+            .frame(maxWidth: 430, alignment: .leading)
+            HStack(spacing: 14) {
+                if let url = model.pairingURL {
+                    QRCodeView(text: url)
+                        .padding(8)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white))
+                        .frame(width: 92, height: 92)
+                    Text("Or scan this code in AirMouse on your iPhone.")
+                } else {
+                    Image(systemName: "qrcode").font(.system(size: 28, weight: .medium)).foregroundStyle(.secondary)
+                    Text("The pairing code will appear when this Mac is listening on Wi-Fi.")
+                }
+            }
+            .font(.system(size: 12)).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, 40)
+        .padding(.horizontal, 36)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

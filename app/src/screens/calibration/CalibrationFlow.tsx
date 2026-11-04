@@ -62,6 +62,10 @@ export function CalibrationFlow(p: Props) {
   const [note, setNote] = useState<string | null>(null);
   const [targetIdx, setTargetIdx] = useState(0);
   const [hits, setHits] = useState<CalibTarget[]>([]);
+  // All 5 dots hit: Done counts down from 3 and finishes by itself, unless
+  // the user touches Speed or Redo first (then it waits for Done).
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [autoOff, setAutoOff] = useState(false);
   const [speed, setSpeed] = useState<Speed | null>(p.preview?.result ?? null);
   const [retry, setRetry] = useState<Retry | null>(p.preview?.step === 'retry' ? { axis: 'y', reason: 'small', degreesX: 28, degreesY: 4 } : null);
   const [hasProximity, setHasProximity] = useState<boolean | null>(AirMouseProximity ? null : false);
@@ -119,6 +123,8 @@ export function CalibrationFlow(p: Props) {
     targetRef.current = 0;
     setTargetIdx(0);
     setHits([]);
+    setCountdown(null);
+    setAutoOff(false);
     setNote(null);
     go('point');
   }, [go]);
@@ -321,6 +327,27 @@ export function CalibrationFlow(p: Props) {
     go('verify');
   };
 
+  const allHit = step === 'verify' && hits.length === CALIB_TARGETS.length;
+  useEffect(() => {
+    if (!allHit || autoOff) return;
+    // Start from a callback, not the effect body (no cascading render).
+    const id = setTimeout(() => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setCountdown((c) => c ?? 3);
+    }, 0);
+    return () => clearTimeout(id);
+  }, [allHit, autoOff]);
+  const doneRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    if (countdown === null || autoOff) return;
+    const id = setTimeout(() => (countdown <= 1 ? doneRef.current() : setCountdown(countdown - 1)), 1000);
+    return () => clearTimeout(id);
+  }, [countdown, autoOff]);
+  const stopAuto = () => {
+    setAutoOff(true);
+    setCountdown(null);
+  };
+
   const done = () => {
     if (!speed) return;
     const r: CalibResult = { ...bias.current, ...speed };
@@ -332,6 +359,9 @@ export function CalibrationFlow(p: Props) {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     close();
   };
+  useEffect(() => {
+    doneRef.current = done;
+  });
 
   const target = CALIB_TARGETS[targetIdx];
   const ticked = step === 'verify' ? hits : CALIB_TARGETS.slice(0, step === 'point' ? targetIdx : 0);
@@ -361,7 +391,7 @@ export function CalibrationFlow(p: Props) {
           ? 'Hold your iPhone like a remote. Tap anywhere when you’re pointing at the dot on your Mac.'
           : step === 'retry'
             ? `That ${axisName} turn looked too ${retry?.reason === 'large' ? 'big' : 'small'}. Point right at each dot and try again.`
-            : 'Move the pointer over each dot on your Mac. No need to hold.';
+            : 'Point at each dot on your Mac, then tap Done.';
   const placeChip =
     note ??
     (hint === 'bring'
@@ -486,8 +516,14 @@ export function CalibrationFlow(p: Props) {
                 format={(v) => `${Math.round(v)}`}
                 minIcon="tortoise.fill"
                 maxIcon="hare.fill"
-                onLive={(v) => !preview && verifyRef.current?.(verifyMotion(scaleSpeed(speed, v)))}
-                onCommit={(v) => setSpeed(scaleSpeed(speed, v))}
+                onLive={(v) => {
+                  if (countdown !== null) stopAuto();
+                  if (!preview) verifyRef.current?.(verifyMotion(scaleSpeed(speed, v)));
+                }}
+                onCommit={(v) => {
+                  if (countdown !== null) stopAuto();
+                  setSpeed(scaleSpeed(speed, v));
+                }}
               />
             </Card>
           ) : null}
@@ -503,7 +539,12 @@ export function CalibrationFlow(p: Props) {
             </View>
           ) : null}
           {step === 'retry' ? <PrimaryButton title="Retry" icon="arrow.counterclockwise" onPress={toCenter} /> : null}
-          {step === 'verify' ? (
+          {step === 'verify' && allHit ? (
+            <View style={styles.finish}>
+              <PrimaryButton title={countdown !== null ? `Done · finishing in ${countdown}…` : 'Done'} icon="checkmark" onPress={done} style={styles.doneBig} />
+              <SecondaryButton title="Redo" plain onPress={toCenter} />
+            </View>
+          ) : step === 'verify' ? (
             <View style={styles.buttons}>
               <SecondaryButton title="Redo" icon="arrow.counterclockwise" onPress={toCenter} style={styles.flex} />
               <PrimaryButton title="Done" onPress={done} style={styles.flex} />
@@ -532,6 +573,8 @@ const styles = StyleSheet.create({
   checks: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center', paddingHorizontal: space.md },
   check: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, height: 30, borderRadius: 15 },
   buttons: { flexDirection: 'row', gap: space.md },
+  finish: { gap: space.xs },
+  doneBig: { shadowColor: '#5E5CE6', shadowOpacity: 0.45, shadowRadius: 16, shadowOffset: { width: 0, height: 6 } },
   flex: { flex: 1 },
   footer: { gap: space.md, minHeight: 54, justifyContent: 'flex-end' },
   offline: { flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' },

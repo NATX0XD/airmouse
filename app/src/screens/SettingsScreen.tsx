@@ -367,6 +367,7 @@ function DiagnosticsSection({ read }: { read: () => Diagnostics }) {
       <ListRow title="Last Move" value={`${d.lastDx}, ${d.lastDy} · ${ago}`} valueRounded />
       <ListRow title="Not Sent (offline)" value={`${d.dropped}`} valueRounded />
       {sent.length === 0 ? <ListRow title="Sent" value="nothing yet" /> : sent.map(([k, n]) => <ListRow key={k} title={`Sent ${k}`} value={`${n}`} valueRounded />)}
+      {d.link ? Object.entries(d.link).map(([k, v]) => <ListRow key={`link-${k}`} title={`Bluetooth ${k}`} value={String(v) || '—'} valueRounded />) : null}
     </Section>
   );
 }
