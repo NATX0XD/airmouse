@@ -89,6 +89,12 @@ export class Outbox {
       this.items[this.items.length - 1] = { t: 'move', dx: round2(last.dx + msg.dx), dy: round2(last.dy + msg.dy) };
       return;
     }
+    // Scroll moves / momentum of the same phase merge too (begin/end keep their place).
+    // A zero-delta momentum ends a fling: never merge it away.
+    if (msg.t === 'scroll' && last?.t === 'scroll' && msg.dy !== 0 && last.dy !== 0 && (msg.phase === 'move' || msg.phase === 'momentum') && last.phase === msg.phase) {
+      this.items[this.items.length - 1] = { t: 'scroll', dy: round2(last.dy + msg.dy), phase: msg.phase };
+      return;
+    }
     this.items.push(msg);
   }
 

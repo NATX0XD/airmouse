@@ -228,13 +228,13 @@ struct OnboardingView: View {
     }
 
     private func advance(_ flow: OnboardingFlow) -> () -> Void {
-        { if flow.current == .howItWorks && explainerIndex < ExplainerContent.steps.count - 1 { explainerIndex += 1 } else { model.onboardingNext() } }
+        { if flow.current == .howItWorks && explainerIndex < ExplainerContent.steps.count { explainerIndex += 1 } else { model.onboardingNext() } }
     }
 
     private func continueTitle(_ f: OnboardingFlow) -> String {
         switch f.current {
         case .welcome?: "Get Started"
-        case .howItWorks?: explainerIndex == ExplainerContent.steps.count - 1 ? "Done" : "Next"
+        case .howItWorks?: explainerIndex == ExplainerContent.steps.count ? "Done" : "Next"
         case .getIPhone?: "I Already Have It"
         case .permissions?: model.setup.allRequiredGranted ? "Start Using AirMouse" : "Continue Anyway"
         default: "Continue"
@@ -285,8 +285,9 @@ private struct ValuePoint: View {
 private struct HowItWorksPage: View {
     var step: Int
     var body: some View {
-        let item = ExplainerContent.steps[step]
-        VStack(spacing: 20) {
+        if step == 0 { return AnyView(SensorOverviewPage()) }
+        let item = ExplainerContent.steps[step - 1]
+        return AnyView(VStack(spacing: 20) {
             Spacer(minLength: 8)
             VStack(spacing: 8) {
                 Text(item.title).font(.system(size: 30, weight: .bold)).multilineTextAlignment(.center)
@@ -298,7 +299,40 @@ private struct HowItWorksPage: View {
             if let fact = item.fact { Text("Fun fact · \(fact)").font(.system(size: 13)).foregroundStyle(Theme.blue) }
             Spacer(minLength: 8)
         }
-        .padding(.horizontal, 32)
+        .padding(.horizontal, 32))
+    }
+}
+
+private struct SensorOverviewPage: View {
+    private let sensors: [(String, String, String, String)] = [
+        ("gyroscope", "Gyroscope", "Measures how fast your phone turns, 100 times a second. Turning moves the cursor.", "explainer/sensors/gyroscope"),
+        ("accelerometer", "Accelerometer", "Feels gravity, so AirMouse knows if the phone is upright and flat during calibration.", "explainer/sensors/accelerometer"),
+        ("proximity", "Proximity sensor", "Checks that the phone is really touching the monitor before calibration starts.", "explainer/sensors/proximity"),
+        ("touchscreen", "Touchscreen", "Hold the pad to point, tap to click, plus buttons for right click, scrolling and typing.", "explainer/sensors/touchscreen"),
+    ]
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Sensors AirMouse Uses").font(.system(size: 30, weight: .bold)).multilineTextAlignment(.center)
+            Text("No extra hardware. Just what's already inside your iPhone.")
+                .font(.system(size: 17)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                ForEach(sensors, id: \.1) { sensor in
+                    VStack(alignment: .leading, spacing: 5) {
+                        AppIllustration(name: sensor.3, fallback: sensor.0).frame(height: 104)
+                        Text(sensor.1).font(.system(size: 15, weight: .semibold))
+                        Text(sensor.2).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(12).frame(maxWidth: .infinity, alignment: .topLeading).card()
+                }
+            }
+            HStack(spacing: 10) {
+                Text("Also used").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+                Text("Camera · scans the QR code to pair   Haptics · gentle feedback").font(.system(size: 12)).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 32).frame(maxWidth: 680).frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

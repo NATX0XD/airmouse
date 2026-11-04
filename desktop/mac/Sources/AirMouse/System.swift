@@ -116,6 +116,9 @@ final class CGEventOutput: @preconcurrency PointerOutput {
     private var clicks = ClickCounter(interval: NSEvent.doubleClickInterval)
     private var clickState: [MouseButton: Int] = [:]
     private var pacer = MotionPacer()
+    private var scrollPacer = ScrollPacer()
+    /// Integer line-delta carry for the legacy DeltaAxis fields.
+    private var scrollCarry = CGVector.zero
     private var held: [MouseButton] = []
     /// Our sub-pixel cursor position and the last point we posted (to notice trackpad / other moves).
     private var tracked: CGPoint?
@@ -143,16 +146,23 @@ final class CGEventOutput: @preconcurrency PointerOutput {
 
     func move(dx: Double, dy: Double, dragging: MouseButton?) {
         pacer.add(dx: dx, dy: dy)
+        startTicker()
+    }
+
+    private func startTicker() {
         if ticker == nil { ticker = FrameTicker { [weak self] dt in self?.frame(dt: dt) } }
         if ticker?.running != true { ticker?.start() }
     }
 
     private func frame(dt: Double) {
         meter.tick(at: ProcessInfo.processInfo.systemUptime)
-        guard let d = pacer.step(dt: dt) else {
-            ticker?.pause()
-            return
-        }
+        for f in scrollPacer.step(dt: dt) { postScroll(f) }
+        let d = pacer.step(dt: dt)
+        if d == nil, scrollPacer.isIdle { ticker?.pause() }
+        if let d { postMove(d) }
+    }
+
+    private func postMove(_ d: CGVector) {
         let from = origin
         let to = PointerMath.clamp(CGPoint(x: from.x + d.dx, y: from.y + d.dy), to: Displays.allBounds())
         tracked = to
@@ -192,9 +202,36 @@ final class CGEventOutput: @preconcurrency PointerOutput {
     }
 
     func scroll(lines: Int) {
-        // Positive dy from the phone = scroll down = negative wheel1.
-        guard let e = CGEvent(scrollWheelEvent2Source: source, units: .line, wheelCount: 1,
-                              wheel1: Int32(-lines), wheel2: 0, wheel3: 0) else { return }
+        scrollPacer.addLegacy(lines: lines)
+        startTicker()
+    }
+
+    func smoothScroll(dx: Double, dy: Double, phase: ScrollPhase) {
+        scrollPacer.add(dx: dx, dy: dy, phase: phase)
+        startTicker()
+    }
+
+    /// Continuous pixel scroll with fractional point deltas and gesture / momentum phases (Safari etc. then
+    /// scroll natively with rubber-banding). Phone: positive dy = scroll down; CG wheel1 positive = up.
+    private func postScroll(_ f: ScrollFrame) {
+        let wy = -f.dy, wx = -f.dx
+        guard let e = CGEvent(scrollWheelEvent2Source: source, units: .pixel, wheelCount: 2,
+                              wheel1: Int32(wy.rounded()), wheel2: Int32(wx.rounded()), wheel3: 0) else { return }
+        func field(_ raw: UInt32) -> CGEventField? { CGEventField(rawValue: raw) }
+        if let c = field(88) { e.setIntegerValueField(c, value: 1) }                          // IsContinuous
+        if let p = field(96) { e.setDoubleValueField(p, value: wy) }                          // PointDeltaAxis1
+        if let p = field(97) { e.setDoubleValueField(p, value: wx) }                          // PointDeltaAxis2
+        if let p = field(93) { e.setDoubleValueField(p, value: wy) }                          // FixedPtDeltaAxis1
+        if let p = field(94) { e.setDoubleValueField(p, value: wx) }                          // FixedPtDeltaAxis2
+        // Line deltas: integer, carried so slow scrolls still add up.
+        scrollCarry.dx += wx / 10; scrollCarry.dy += wy / 10
+        let lx = scrollCarry.dx.rounded(.towardZero), ly = scrollCarry.dy.rounded(.towardZero)
+        scrollCarry.dx -= lx; scrollCarry.dy -= ly
+        if let l = field(11) { e.setIntegerValueField(l, value: Int64(ly)) }                  // DeltaAxis1
+        if let l = field(12) { e.setIntegerValueField(l, value: Int64(lx)) }                  // DeltaAxis2
+        if let p = field(99) { e.setIntegerValueField(p, value: f.scrollPhase) }              // ScrollPhase
+        if let p = field(123) { e.setIntegerValueField(p, value: f.momentumPhase) }           // MomentumPhase
+        if f.scrollPhase == ScrollEventPhase.began || f.momentumPhase == ScrollEventPhase.momentumBegin { scrollCarry = .zero }
         e.post(tap: .cghidEventTap)
     }
 

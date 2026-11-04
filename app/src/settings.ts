@@ -28,7 +28,9 @@ export type AppSettings = {
   screenHMm: number;
   screenName: string;
   calibratedAt: number; // epoch ms, 0 = never
-  calibratedV3: string[]; // screenKey() of every display calibrated with the 5-point flow
+  calibratedV3: string[];
+  scrollNatural: boolean; // finger up = content scrolls down (like a trackpad)
+  scrollSpeed: number; // 0.25 .. 3 // screenKey() of every display calibrated with the 5-point flow
 };
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -50,6 +52,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   screenName: '',
   calibratedAt: 0,
   calibratedV3: [],
+  scrollNatural: true,
+  scrollSpeed: 1,
 };
 
 const KEY = 'airmouse.settings.v1';

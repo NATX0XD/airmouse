@@ -26,7 +26,8 @@ export type CalibMsg =
 export type Msg =
   | { t: 'move'; dx: number; dy: number }
   | { t: 'button'; b: Button; down: boolean }
-  | { t: 'scroll'; dy: number } // positive = scroll down
+  // positive = down. With `phase`: fractional points. Without: whole notches (12 pt).
+  | { t: 'scroll'; dy: number; phase?: 'begin' | 'move' | 'end' | 'momentum' }
   | { t: 'key'; k: KeyName } // arrows double as slide control
   | { t: 'text'; s: string } // type this text on the Mac
   | { t: 'center' }

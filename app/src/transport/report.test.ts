@@ -43,3 +43,11 @@ test('fractional moves accumulate into integer reports', () => {
   assert.equal(back.length, 1);
   assert.equal(back[0][1], 256 - 1);
 });
+
+test('fractional scroll accumulates into whole wheel notches', () => {
+  const enc = new ReportEncoder();
+  assert.deepEqual(enc.encode({ t: 'scroll', dy: 4.8, phase: 'move' }), []); // 0.4 notch
+  const r = enc.encode({ t: 'scroll', dy: 8.4, phase: 'move' }); // +0.7 = 1.1 notches
+  assert.equal(r.length, 1);
+  assert.equal(r[0][3], 255); // wheel -1 (content down)
+});

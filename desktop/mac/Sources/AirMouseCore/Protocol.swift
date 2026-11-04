@@ -27,6 +27,11 @@ public enum ArrowKey: String, Sendable, CaseIterable {
     public var isArrow: Bool { [.left, .right, .up, .down].contains(self) }
 }
 
+/// `scroll.phase` (trackpad-style scrolling): finger down, finger moving, finger up, phone-computed fling.
+public enum ScrollPhase: String, Sendable, CaseIterable {
+    case begin, move, end, momentum
+}
+
 /// `{t:'practice', step:'start'|'stop'}` (phone -> Mac).
 public enum PracticeCommand: String, Sendable { case start, stop }
 
@@ -92,7 +97,10 @@ public enum InboundMessage: Equatable, Sendable {
     case hello(version: Int?, device: PhoneDevice)
     case move(dx: Double, dy: Double)
     case button(MouseButton, down: Bool)
+    /// Legacy notches (no `phase`): positive = scroll down.
     case scroll(dy: Int)
+    /// Trackpad-style scroll (`phase` present): points, fractional, positive dy = scroll down / dx = right.
+    case smoothScroll(dx: Double, dy: Double, phase: ScrollPhase)
     case key(ArrowKey)
     case center
     case calib(CalibEvent)
@@ -130,6 +138,7 @@ public enum OutboundMessage: Equatable, Sendable {
 public enum ProtocolCodec {
     static let maxMove = 5000.0
     static let maxScroll = 50.0
+    static let maxScrollPoints = 4000.0
     /// Longest `text` accepted per message (characters); longer strings are cut.
     public static let maxText = 2000
 
@@ -163,6 +172,10 @@ public enum ProtocolCodec {
             guard let b = (m["b"] as? String).flatMap(MouseButton.init(rawValue:)),
                   let down = bool(m["down"]) else { return nil }
             return .button(b, down: down)
+        case "scroll" where m["phase"] is String:
+            guard let phase = (m["phase"] as? String).flatMap(ScrollPhase.init(rawValue:)) else { return nil }
+            let dy = number(m["dy"]) ?? 0, dx = number(m["dx"]) ?? 0
+            return .smoothScroll(dx: clamp(dx, maxScrollPoints), dy: clamp(dy, maxScrollPoints), phase: phase)
         case "scroll":
             guard let dy = number(m["dy"]) else { return nil }
             let lines = Int(clamp(dy, maxScroll).rounded())

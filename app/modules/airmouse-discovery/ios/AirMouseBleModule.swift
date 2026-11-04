@@ -30,6 +30,7 @@ public class AirMouseBleModule: Module {
     Function("disconnect") { self.core.disconnect() }
     Function("send") { (text: String) in self.core.send(text) }
     Function("sendMove") { (dx: Double, dy: Double) in self.core.sendMove(dx, dy) }
+    Function("sendScroll") { (dy: Double, phase: String) in self.core.sendScroll(dy, phase) }
     Function("stats") { () -> [String: Any] in self.core.stats() }
 
     OnDestroy { self.core.disconnect() }
@@ -75,6 +76,9 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
   private var moveX = 0.0
   private var moveY = 0.0
   private var hasMove = false
+  // Scroll 'move' / 'momentum' deltas of one phase, summed like moves.
+  private var scrollDy = 0.0
+  private var scrollPhase: String?
   private var chunk: Data? // rest of a message that did not fit one write
   private var poll: DispatchSourceTimer?
   // Watchdog: iOS can leave canSendWriteWithoutResponse false and never call
@@ -122,7 +126,8 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     queue.async {
       guard self.open else { return }
       self.markBusy()
-      self.materializeMove() // a move queued before this message goes first
+      self.materializeMove() // a move / scroll queued before this message goes first
+      self.materializeScroll()
       self.fifo.append(Data((text + "\n").utf8))
       self.pump()
     }
@@ -140,11 +145,23 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     }
   }
 
+  func sendScroll(_ dy: Double, _ phase: String) {
+    queue.async {
+      guard self.open else { return }
+      self.markBusy()
+      if let p = self.scrollPhase, p != phase { self.materializeScroll() }
+      if self.scrollPhase != nil { self.merged += 1 }
+      self.scrollDy += dy
+      self.scrollPhase = phase
+      self.pump()
+    }
+  }
+
   func stats() -> [String: Any] {
     queue.sync {
       [
         "open": open, "writes": writes, "moves": moves, "merged": merged, "waits": waits,
-        "queued": fifo.count + (hasMove ? 1 : 0) + (chunk == nil ? 0 : 1), "maxWrite": maxWrite(), "lastError": lastError,
+        "queued": fifo.count + (hasMove ? 1 : 0) + (scrollPhase == nil ? 0 : 1) + (chunk == nil ? 0 : 1), "maxWrite": maxWrite(), "lastError": lastError,
         "responseWrites": responseWrites, "readyCallbacks": readyCallbacks, "stalled": stalled,
       ]
     }
@@ -154,7 +171,7 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
   // Idle -> busy: the stall clock starts now, not at the last write long ago.
   private func markBusy() {
-    if chunk == nil && fifo.isEmpty && !hasMove && !awaitingResponse { lastProgress = .now() }
+    if chunk == nil && fifo.isEmpty && !hasMove && scrollPhase == nil && !awaitingResponse { lastProgress = .now() }
   }
 
   private func maxWrite() -> Int {
@@ -172,6 +189,14 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     moves += 1
   }
 
+  private func materializeScroll() {
+    guard let phase = scrollPhase else { return }
+    let dy = (scrollDy * 100).rounded() / 100
+    scrollPhase = nil
+    scrollDy = 0
+    fifo.append(Data("{\"t\":\"scroll\",\"dy\":\(fmt(dy)),\"phase\":\"\(phase)\"}\n".utf8))
+  }
+
   private func fmt(_ v: Double) -> String {
     v == v.rounded() ? String(Int(v)) : String(format: "%.2f", v)
   }
@@ -181,7 +206,10 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     while true {
       if awaitingResponse { return startPoll() } // the with-response write completes first
       if chunk == nil {
-        if fifo.isEmpty { materializeMove() }
+        if fifo.isEmpty {
+          materializeMove()
+          materializeScroll()
+        }
         if fifo.isEmpty { break }
         chunk = fifo.removeFirst()
       }
@@ -217,7 +245,7 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
   // Every 10 ms while something is pending: retry the pump, catch a stall.
   private func tick() {
-    let pending = chunk != nil || !fifo.isEmpty || hasMove || awaitingResponse
+    let pending = chunk != nil || !fifo.isEmpty || hasMove || scrollPhase != nil || awaitingResponse
     if pending, DispatchTime.now().uptimeNanoseconds - lastProgress.uptimeNanoseconds > stallNs {
       stalled = true
       lastError = "stalled: no write completed for 2 s"
@@ -255,6 +283,8 @@ final class BleCore: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     hasMove = false
     moveX = 0
     moveY = 0
+    scrollPhase = nil
+    scrollDy = 0
     stopPoll()
   }
 

@@ -77,3 +77,18 @@ test('the same Mac is found under its advertised or its GAP name', async () => {
   assert.equal(pickMac('Gone', [{ id: 'only', names: ['AirMouse-Studio'] }]), 'only'); // the one Mac around
   assert.equal(pickMac('Gone', [{ id: 'a', names: ['x'] }, { id: 'b', names: ['y'] }]), null);
 });
+
+test('outbox merges scroll deltas of the same phase only', async () => {
+  const { Outbox } = await import('./bleFraming.ts');
+  const o = new Outbox();
+  o.push({ t: 'scroll', dy: 0, phase: 'begin' });
+  o.push({ t: 'scroll', dy: 0.5, phase: 'move' });
+  o.push({ t: 'scroll', dy: 0.25, phase: 'move' });
+  o.push({ t: 'scroll', dy: 2, phase: 'momentum' });
+  o.push({ t: 'scroll', dy: 1.9, phase: 'momentum' });
+  o.push({ t: 'scroll', dy: 0, phase: 'momentum' }); // fling over: kept
+  assert.equal(o.size, 4);
+  o.shift();
+  assert.deepEqual(o.shift(), { t: 'scroll', dy: 0.75, phase: 'move' });
+  assert.deepEqual(o.shift(), { t: 'scroll', dy: 3.9, phase: 'momentum' });
+});

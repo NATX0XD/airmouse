@@ -9,6 +9,7 @@ import { HoldButton, Icon, IconButton, Material, PrimaryButton, SegmentedControl
 import { isTap } from '../motion/pointer';
 import { TouchSet } from '../ui/touches';
 import { KeyboardPanel, useKeyboardHeight } from './KeyboardPanel';
+import { useScrollSender } from './useScrollSender';
 import { aurora, radius, space, usePalette, useReduceMotion } from '../ui/tokens';
 import { TAB_BAR_SPACE } from '../ui/TabBar';
 import { useTourTarget } from '../ui/Tour';
@@ -45,7 +46,6 @@ function GlassCircle(p: { icon: SymbolName; label: string; onPress: () => void; 
     </Pressable>
   );
 }
-const SCROLL_STEP_PX = 14; // finger travel per scroll notch
 
 export function RemoteScreen(p: Props) {
   const c = usePalette();
@@ -56,7 +56,13 @@ export function RemoteScreen(p: Props) {
   const downAt = useRef(0);
   const padTouches = useRef(new TouchSet());
   const scrollY = useRef(0);
-  const scrollAcc = useRef(0);
+  const scrollOpts = { natural: p.settings.scrollNatural ?? true, speed: p.settings.scrollSpeed ?? 1 };
+  const stripScroll = useScrollSender(p.send, scrollOpts);
+  const padScroll = useScrollSender(p.send, scrollOpts);
+  // Two fingers on the pad = scroll (pointing paused, no click on release).
+  const twoFinger = useRef(false);
+  const padScrolled = useRef(false);
+  const padY = useRef(0);
   const glow = useAnimatedValue(0);
   const ring = useAnimatedValue(0);
   const pressed = padDown || !!p.forcePressed;
@@ -97,34 +103,58 @@ export function RemoteScreen(p: Props) {
     setPadDown(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft);
   };
+  const padMove = (e: GestureResponderEvent) => {
+    const mine = e.nativeEvent.touches.filter((t) => padTouches.current.has(t.identifier));
+    if (mine.length < 2) return;
+    const y = mine.reduce((a, t) => a + t.pageY, 0) / mine.length;
+    if (!twoFinger.current) {
+      twoFinger.current = true;
+      padScrolled.current = true;
+      padY.current = y;
+      p.setTouching(p.settings.mode === 'always'); // pointer paused in both modes
+      padScroll.begin();
+      return;
+    }
+    padScroll.move(padY.current - y);
+    padY.current = y;
+  };
+  const endTwoFinger = () => {
+    if (!twoFinger.current) return;
+    twoFinger.current = false;
+    padScroll.end();
+  };
   const padEnd = (e: GestureResponderEvent) => {
     const n = e.nativeEvent;
-    if (!padTouches.current.up([n, ...n.changedTouches]) && !padTouches.current.sync(n.touches)) return;
+    const last = padTouches.current.up([n, ...n.changedTouches]) || padTouches.current.sync(n.touches);
+    if (padTouches.current.count < 2) endTwoFinger();
+    if (!last) return;
     p.setTouching(false);
     setPadDown(false);
-    if (isTap(downAt.current, Date.now())) click('left');
+    if (!padScrolled.current && isTap(downAt.current, Date.now())) click('left');
+    padScrolled.current = false;
   };
   const padCancel = () => {
+    endTwoFinger();
+    padScrolled.current = false;
     if (!padTouches.current.clear()) return;
     p.setTouching(false);
     setPadDown(false);
   };
 
+  // Scroll strip: smooth fractional deltas + momentum (useScrollSender).
   const scrollGrant = (e: GestureResponderEvent) => {
     scrollY.current = e.nativeEvent.pageY;
-    scrollAcc.current = 0;
     setScrolling(true);
+    stripScroll.begin();
   };
   const scrollMove = (e: GestureResponderEvent) => {
     const y = e.nativeEvent.pageY;
-    scrollAcc.current += scrollY.current - y; // finger up = scroll down, like a touchpad
+    stripScroll.move(scrollY.current - y); // finger up > 0
     scrollY.current = y;
-    const notches = Math.trunc(scrollAcc.current / SCROLL_STEP_PX);
-    if (notches !== 0) {
-      scrollAcc.current -= notches * SCROLL_STEP_PX;
-      p.send({ t: 'scroll', dy: notches });
-      Haptics.selectionAsync();
-    }
+  };
+  const scrollEnd = () => {
+    setScrolling(false);
+    stripScroll.end();
   };
 
   const hold = (b: Button) => ({
@@ -143,7 +173,7 @@ export function RemoteScreen(p: Props) {
       : 'Touch and hold to pause · Tap to click'
     : pressed
       ? 'Turn your iPhone to move the pointer'
-      : 'Tap to click';
+      : 'Tap to click · Two fingers to scroll';
   const pillLabel = connected
     ? p.macName || 'Mac'
     : p.status === 'connecting'
@@ -200,6 +230,7 @@ export function RemoteScreen(p: Props) {
           ref={tPad}
           style={[styles.pad, { backgroundColor: c.card }, pressed && styles.padGlow]}
           onTouchStart={padStart}
+          onTouchMove={padMove}
           onTouchEnd={padEnd}
           onTouchCancel={padCancel}
           accessible
@@ -243,8 +274,8 @@ export function RemoteScreen(p: Props) {
           onStartShouldSetResponder={() => true}
           onResponderGrant={scrollGrant}
           onResponderMove={scrollMove}
-          onResponderRelease={() => setScrolling(false)}
-          onResponderTerminate={() => setScrolling(false)}
+          onResponderRelease={scrollEnd}
+          onResponderTerminate={scrollEnd}
           onResponderTerminationRequest={() => false}
           accessibilityLabel="Scroll"
           accessibilityHint="Drag up or down to scroll"

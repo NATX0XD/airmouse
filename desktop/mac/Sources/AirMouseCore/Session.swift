@@ -9,6 +9,8 @@ public protocol PointerOutput: AnyObject {
     func button(_ button: MouseButton, down: Bool)
     /// Line-based notches, positive = scroll down.
     func scroll(lines: Int)
+    /// Trackpad-style scroll in points with a gesture phase.
+    func smoothScroll(dx: Double, dy: Double, phase: ScrollPhase)
     func key(_ key: ArrowKey)
     /// Types unicode text into the focused app.
     func type(_ text: String)
@@ -75,6 +77,8 @@ public final class ReceiverSession {
             }
         case .scroll(let dy):
             output.scroll(lines: dy)
+        case .smoothScroll(let dx, let dy, let phase):
+            output.smoothScroll(dx: dx, dy: dy, phase: phase)
         case .key(let k):
             output.key(k)
         case .center:
@@ -138,7 +142,7 @@ public struct MessageStats: Equatable, Sendable {
         case .hello?: "hello"
         case .move?: "move"
         case .button?: "button"
-        case .scroll?: "scroll"
+        case .scroll?, .smoothScroll?: "scroll"
         case .key?: "key"
         case .center?: "center"
         case .calib?: "calib"
@@ -239,6 +243,7 @@ public final class LogOutput: PointerOutput {
     }
     public func button(_ button: MouseButton, down: Bool) { log("button \(button.rawValue) \(down ? "down" : "up")") }
     public func scroll(lines: Int) { log("scroll \(lines > 0 ? "+" : "")\(lines)") }
+    public func smoothScroll(dx: Double, dy: Double, phase: ScrollPhase) { log("scroll \(phase.rawValue) \(f(dx)) \(f(dy))") }
     public func key(_ key: ArrowKey) { log("key \(key.rawValue)") }
     public func type(_ text: String) { log("type \(text)") }
     public func warp(to point: CGPoint) { log("warp \(Int(point.x.rounded())),\(Int(point.y.rounded()))") }

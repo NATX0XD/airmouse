@@ -23,6 +23,7 @@ export class ReportEncoder {
   // sub-pixel remainder here so slow motion still adds up.
   private remX = 0;
   private remY = 0;
+  private remScroll = 0; // fractional scroll notches
   private readonly screenW: number;
   private readonly screenH: number;
   constructor(screenW = 1920, screenH = 1080) { this.screenW = screenW; this.screenH = screenH; }
@@ -39,8 +40,12 @@ export class ReportEncoder {
         if (dx === 0 && dy === 0) return [];
         return this.split(dx, dy, 0, 0);
       }
-      case 'scroll':
-        return this.split(0, 0, -msg.dy, 0);
+      case 'scroll': {
+        this.remScroll += msg.phase ? msg.dy / 12 : msg.dy; // phased scroll is in points, 12 per notch
+        const n = Math.trunc(this.remScroll);
+        this.remScroll -= n;
+        return n === 0 ? [] : this.split(0, 0, -n, 0);
+      }
       case 'button': {
         const bit = msg.b === 'left' ? 1 : 2;
         this.buttons = msg.down ? this.buttons | bit : this.buttons & ~bit;

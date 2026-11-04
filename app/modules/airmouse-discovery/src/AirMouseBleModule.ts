@@ -24,6 +24,8 @@ declare class AirMouseBleModule extends NativeModule<Events> {
   disconnect(): void;
   send(text: string): void;
   sendMove(dx: number, dy: number): void;
+  // Scroll 'move' / 'momentum' deltas: summed natively like moves.
+  sendScroll(dy: number, phase: string): void;
   stats(): NativeBleStats;
 }
 

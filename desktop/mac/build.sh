@@ -54,6 +54,11 @@ if [[ -d "$ASSETS/explainer" ]]; then
   cp "$ASSETS/explainer/"*.png "$APP/Contents/Resources/Illustrations/explainer/"
   echo "Illustrations: explainer/*.png"
 fi
+if [[ -d "$ASSETS/explainer/sensors" ]]; then
+  mkdir -p "$APP/Contents/Resources/Illustrations/explainer/sensors"
+  cp "$ASSETS/explainer/sensors/"*.png "$APP/Contents/Resources/Illustrations/explainer/sensors/"
+  echo "Illustrations: explainer/sensors/*.png"
+fi
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

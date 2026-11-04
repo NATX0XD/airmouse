@@ -126,6 +126,28 @@ export function SettingsScreen(props: Props) {
           <SwitchRow title="Flick to Change Slides" icon="hand.wave.fill" iconColor="#BF5AF2" value={settings.flickSlides} onChange={(v) => onChange({ ...settings, flickSlides: v })} />
         </Section>
 
+        <Section header="Scrolling" footer="Drag the scroll strip, or two fingers on the touch area. Flick to keep it coasting.">
+          <SwitchRow
+            title="Natural Scrolling"
+            subtitle={(settings.scrollNatural ?? true) ? 'Content follows your finger' : 'Reversed'}
+            icon="scroll"
+            iconColor="#30D158"
+            value={settings.scrollNatural ?? true}
+            onChange={(v) => onChange({ ...settings, scrollNatural: v })}
+          />
+          <SliderRow
+            title="Scroll Speed"
+            value={settings.scrollSpeed ?? 1}
+            min={0.25}
+            max={3}
+            step={0.25}
+            format={(v) => `${v.toFixed(2).replace(/0$/, '')}×`}
+            minIcon="tortoise.fill"
+            maxIcon="hare.fill"
+            onCommit={(v) => onChange({ ...settings, scrollSpeed: v })}
+          />
+        </Section>
+
         <Section header="Direction">
           <SwitchRow title="Invert Horizontal" icon="arrow.left.and.right" iconColor="#FF9F0A" value={m.invertX} onChange={(v) => setMotion({ invertX: v })} />
           <SwitchRow title="Invert Vertical" icon="arrow.up.and.down" iconColor="#FF9F0A" value={m.invertY} onChange={(v) => setMotion({ invertY: v })} />

@@ -14,6 +14,14 @@ export class TouchSet {
     return this.ids.size > 0;
   }
 
+  get count(): number {
+    return this.ids.size;
+  }
+
+  has(id: number | string): boolean {
+    return this.ids.has(String(id));
+  }
+
   // Returns true when this view went from no fingers to pressed.
   down(id: number | string): boolean {
     const was = this.active;

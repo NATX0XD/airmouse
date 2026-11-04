@@ -115,6 +115,8 @@ export class NativeBleMacTransport implements Transport {
     const ble = AirMouseBle;
     if (!ble || !this.isOpen) return false;
     if (msg.t === 'move') ble.sendMove(msg.dx, msg.dy);
+    // Non-zero scroll deltas merge natively; a zero `momentum` ends a fling and must go as is.
+    else if (msg.t === 'scroll' && msg.dy !== 0 && (msg.phase === 'move' || msg.phase === 'momentum')) ble.sendScroll(msg.dy, msg.phase);
     else ble.send(encode(msg));
     return true;
   }

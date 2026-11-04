@@ -42,11 +42,15 @@ public struct MotionPacer: Equatable, Sendable {
     /// An input arrived since the last frame.
     private var freshInput = false
 
-    public init() {}
+    /// Scroll uses no glide (a give-back would scroll backwards).
+    public var glides = true
+
+    public init(glides: Bool = true) { self.glides = glides }
 
     /// Nothing to emit and no glide armed (a moving pointer always gets its one glide before idling).
     public var isIdle: Bool {
-        pendingX == 0 && pendingY == 0 && debtX == 0 && debtY == 0 && glideStart == nil && !(canGlide && hypot(vx, vy) > Self.minGlideSpeed)
+        pendingX == 0 && pendingY == 0 && debtX == 0 && debtY == 0 && glideStart == nil
+            && !(glides && canGlide && hypot(vx, vy) > Self.minGlideSpeed)
     }
     public var isGliding: Bool { glideStart != nil }
     public var glideWindow: Double { min(Self.maxGlide, max(Self.minGlide, 1.5 * meanInterval)) }
@@ -79,7 +83,7 @@ public struct MotionPacer: Equatable, Sendable {
         vx = pendingX / meanInterval; vy = pendingY / meanInterval
     }
 
-    public mutating func reset() { self = MotionPacer() }
+    public mutating func reset() { self = MotionPacer(glides: glides) }
 
     /// One display frame. Returns the delta to post now (nil = idle; the caller may pause its timer).
     public mutating func step(dt: Double) -> CGVector? {
@@ -108,7 +112,7 @@ public struct MotionPacer: Equatable, Sendable {
         // Glide: a whole frame passed with nothing pending (next packet early-late or delayed) - keep the
         // velocity instead of stopping; the next packet repays it.
         let age = lastInputAt.map { clock - $0 } ?? .infinity
-        if startedEmpty, canGlide, hypot(vx, vy) > Self.minGlideSpeed {
+        if glides, startedEmpty, canGlide, hypot(vx, vy) > Self.minGlideSpeed {
             canGlide = false
             glideStart = clock; glideVX = vx; glideVY = vy
         }
@@ -152,5 +156,136 @@ public struct FrameRateMeter: Equatable, Sendable {
     public func rate(now: Double) -> Double {
         guard let last, now - last < 1 else { return 0 }
         return fps
+    }
+}
+
+// MARK: - Scroll
+
+/// CGEvent scroll phase codes (kCGScrollWheelEventScrollPhase / kCGScrollWheelEventMomentumPhase).
+public enum ScrollEventPhase {
+    public static let began: Int64 = 1
+    public static let changed: Int64 = 2
+    public static let ended: Int64 = 4
+    public static let momentumBegin: Int64 = 1
+    public static let momentumContinue: Int64 = 2
+    public static let momentumEnd: Int64 = 3
+}
+
+/// One scroll CGEvent to post: points (positive dy = scroll down) plus the phase fields.
+public struct ScrollFrame: Equatable, Sendable {
+    public var dx: Double
+    public var dy: Double
+    /// kCGScrollWheelEventScrollPhase (0 = none).
+    public var scrollPhase: Int64
+    /// kCGScrollWheelEventMomentumPhase (0 = none).
+    public var momentumPhase: Int64
+    public init(dx: Double, dy: Double, scrollPhase: Int64 = 0, momentumPhase: Int64 = 0) {
+        self.dx = dx; self.dy = dy; self.scrollPhase = scrollPhase; self.momentumPhase = momentumPhase
+    }
+}
+
+/// Paces scroll like pointer moves (display frames, linear drain over the input interval, no glide) and turns
+/// the phone's `phase` stream into the macOS gesture sequence: began -> changed... -> ended, then
+/// momentum begin -> continue... -> end. Legacy notches (no phase) become phase-less pixel scrolls.
+public struct ScrollPacer: Equatable, Sendable {
+    public enum Gesture: Equatable, Sendable { case none, legacy, touching, momentum }
+
+    /// Points per legacy notch.
+    public static let pointsPerLine = 12.0
+    /// No scroll message for this long ends an open gesture (lost `end`, momentum without a final zero).
+    public static let touchTimeout = 1.0
+    public static let momentumTimeout = 0.2
+
+    public private(set) var gesture = Gesture.none
+    private var pacer = MotionPacer(glides: false)
+    private var began = false          // `began` / momentum begin already posted
+    private var endRequested = false
+    private var clock = 0.0
+    private var lastInputAt = 0.0
+    private var queued: [ScrollFrame] = []
+
+    public init() {}
+
+    public var isIdle: Bool { gesture == .none && pacer.isIdle && queued.isEmpty }
+
+    public mutating func addLegacy(lines: Int) {
+        if gesture == .touching || gesture == .momentum { closeGesture() }
+        gesture = .legacy
+        lastInputAt = clock
+        pacer.add(dx: 0, dy: Double(lines) * Self.pointsPerLine)
+    }
+
+    public mutating func add(dx: Double, dy: Double, phase: ScrollPhase) {
+        lastInputAt = clock
+        switch phase {
+        case .begin:
+            if gesture != .none { closeGesture() }
+            gesture = .touching; began = false; endRequested = false
+        case .move:
+            if gesture != .touching { if gesture != .none { closeGesture() }; gesture = .touching; began = false; endRequested = false }
+        case .end:
+            if gesture != .touching { if gesture != .none { closeGesture() }; gesture = .touching; began = false }
+            endRequested = true
+        case .momentum:
+            if gesture == .touching { closeGesture() }
+            if gesture != .momentum { gesture = .momentum; began = false; endRequested = false }
+            if dx == 0 && dy == 0 { endRequested = true }
+        }
+        if dx != 0 || dy != 0 { pacer.add(dx: dx, dy: dy) }
+    }
+
+    /// Flush what is pending and close the open gesture now (a new gesture or another kind interrupts it).
+    private mutating func closeGesture() {
+        let rest = CGVector(dx: pacer.pendingX, dy: pacer.pendingY)
+        pacer.reset()
+        switch gesture {
+        case .touching:
+            if rest.dx != 0 || rest.dy != 0 {
+                queued.append(ScrollFrame(dx: rest.dx, dy: rest.dy, scrollPhase: began ? ScrollEventPhase.changed : ScrollEventPhase.began))
+                began = true
+            }
+            if began { queued.append(ScrollFrame(dx: 0, dy: 0, scrollPhase: ScrollEventPhase.ended)) }
+        case .momentum:
+            if rest.dx != 0 || rest.dy != 0 {
+                queued.append(ScrollFrame(dx: rest.dx, dy: rest.dy, momentumPhase: began ? ScrollEventPhase.momentumContinue : ScrollEventPhase.momentumBegin))
+                began = true
+            }
+            if began { queued.append(ScrollFrame(dx: 0, dy: 0, momentumPhase: ScrollEventPhase.momentumEnd)) }
+        case .legacy:
+            if rest.dx != 0 || rest.dy != 0 { queued.append(ScrollFrame(dx: rest.dx, dy: rest.dy)) }
+        case .none: break
+        }
+        gesture = .none; began = false; endRequested = false
+    }
+
+    /// One display frame: the scroll events to post now, in order.
+    public mutating func step(dt: Double) -> [ScrollFrame] {
+        clock += max(0, dt)
+        var out = queued
+        queued.removeAll()
+        if let d = pacer.step(dt: dt), d.dx != 0 || d.dy != 0 {
+            switch gesture {
+            case .touching:
+                out.append(ScrollFrame(dx: d.dx, dy: d.dy, scrollPhase: began ? ScrollEventPhase.changed : ScrollEventPhase.began))
+                began = true
+            case .momentum:
+                out.append(ScrollFrame(dx: d.dx, dy: d.dy, momentumPhase: began ? ScrollEventPhase.momentumContinue : ScrollEventPhase.momentumBegin))
+                began = true
+            case .legacy, .none:
+                out.append(ScrollFrame(dx: d.dx, dy: d.dy))
+            }
+        }
+        let quiet = clock - lastInputAt
+        let drained = pacer.isIdle
+        switch gesture {
+        case .touching where drained && (endRequested || quiet > Self.touchTimeout),
+             .momentum where drained && (endRequested || quiet > Self.momentumTimeout),
+             .legacy where drained:
+            closeGesture()
+            out += queued
+            queued.removeAll()
+        default: break
+        }
+        return out
     }
 }

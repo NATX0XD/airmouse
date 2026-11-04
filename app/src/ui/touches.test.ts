@@ -32,6 +32,16 @@ test('sync releases fingers no longer on screen', () => {
   assert.equal(s.active, false);
 });
 
+test('count and has track fingers on a view (two-finger scroll)', () => {
+  const s = new TouchSet();
+  s.down(1);
+  s.down(2);
+  assert.equal(s.count, 2);
+  assert.equal(s.has(2), true);
+  s.up([{ identifier: 2 }]);
+  assert.deepEqual([s.count, s.has(2)], [1, false]);
+});
+
 test('clear reports whether anything was held', () => {
   const s = new TouchSet();
   assert.equal(s.clear(), false);
