@@ -24,17 +24,24 @@ export function WelcomeFlow(p: Props) {
     Animated.spring(enter, { toValue: 1, useNativeDriver: true, damping: 18, stiffness: 170 }).start();
   }, [pager.index, enter]);
 
-  const next = () => {
-    if (page === 'how') { setExplainerOpen(true); return; }
+  const advance = () => {
     const n = pagerNext(pager, WELCOME_PAGES.length);
     if (n.done) p.onDone();
     else setPager(n);
+  };
+  const next = () => {
+    if (page === 'how') { setExplainerOpen(true); return; }
+    advance();
+  };
+  // Explainer finished: close it and move on to the next welcome page.
+  const explainerDone = () => {
+    setExplainerOpen(false);
+    advance();
   };
   const artW = Math.min(width - space.margin * 2, 360);
   const translateX = enter.interpolate({ inputRange: [0, 1], outputRange: [reduceMotion ? 0 : 24, 0] });
 
   return (<>
-    <ExplainerFlow visible={explainerOpen} onDone={() => setExplainerOpen(false)} addGyroListener={p.addGyroListener} />
     <Modal visible={p.visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={p.onDone}>
       <LinearGradient colors={['#090B2A', '#24135A', '#100D36']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.root, { paddingTop: insets.top + space.sm, paddingBottom: insets.bottom + space.lg }]}> 
         <View pointerEvents="none" style={[styles.orb, styles.orbBlue]} />
@@ -121,6 +128,7 @@ export function WelcomeFlow(p: Props) {
         </Animated.View>
 
         <PrimaryButton title={page === 'getMac' ? 'I Already Have It' : 'Continue'} onPress={next} />
+        <ExplainerFlow visible={explainerOpen} onDone={explainerDone} addGyroListener={p.addGyroListener} />
       </LinearGradient>
     </Modal>
   </>);
