@@ -29,6 +29,7 @@ type Props = {
   onShowWelcome: () => void;
   initialScroll?: number;
   diagnostics?: () => Diagnostics;
+  onBench?: () => void;
 };
 
 export function SettingsScreen(props: Props) {
@@ -137,7 +138,7 @@ export function SettingsScreen(props: Props) {
 
         <CalibrationSection settings={settings} onChange={onChange} onCalibrate={onCalibrate} />
 
-        {props.diagnostics ? <DiagnosticsSection read={props.diagnostics} /> : null}
+        {props.diagnostics ? <DiagnosticsSection read={props.diagnostics} onBench={props.onBench} /> : null}
 
         <Section header="Help">
           <ListRow title="Show Tour" icon="sparkles" iconColor="#BF5AF2" chevron onPress={props.onShowTour} />
@@ -349,7 +350,7 @@ const styles = StyleSheet.create({
 // Live pointer pipeline state for debugging on real devices
 // (docs/spec-v3.md 4a.4). Polls a ref snapshot at ~4 Hz, only while shown.
 const DIAG_MS = 250;
-function DiagnosticsSection({ read }: { read: () => Diagnostics }) {
+function DiagnosticsSection({ read, onBench }: { read: () => Diagnostics; onBench?: () => void }) {
   const [d, setD] = useState<Diagnostics>(() => read());
   useEffect(() => {
     const id = setInterval(() => setD(read()), DIAG_MS);
@@ -368,6 +369,7 @@ function DiagnosticsSection({ read }: { read: () => Diagnostics }) {
       <ListRow title="Not Sent (offline)" value={`${d.dropped}`} valueRounded />
       {sent.length === 0 ? <ListRow title="Sent" value="nothing yet" /> : sent.map(([k, n]) => <ListRow key={k} title={`Sent ${k}`} value={`${n}`} valueRounded />)}
       {d.link ? Object.entries(d.link).map(([k, v]) => <ListRow key={`link-${k}`} title={`Bluetooth ${k}`} value={String(v) || '—'} valueRounded />) : null}
+      {d.link && onBench ? <ListRow title="Run Bluetooth Benchmark" icon="speedometer" iconColor="#5E5CE6" chevron onPress={onBench} /> : null}
     </Section>
   );
 }

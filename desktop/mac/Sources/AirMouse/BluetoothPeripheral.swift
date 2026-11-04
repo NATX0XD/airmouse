@@ -28,7 +28,10 @@ final class BluetoothPeripheral: NSObject {
     private var pending: [(Data, UUID?)] = []
     private var added = false
     private var moveCount = 0
+    private var movesAtLog = 0
     private var lastMoveLog = Date.distantPast
+    // Off: benchmarked with no measurable gain (writes 11-15 Hz either way).
+    static let lowLatencyDefault = false
 
     init(localName: String, screen: @escaping () -> ScreenInfo, hub: BLEHub<UUID>) {
         self.localName = localName
@@ -107,8 +110,11 @@ final class BluetoothPeripheral: NSObject {
         case .subscribed(let central):
             bleLog.info("subscribed \(central.identifier.uuidString, privacy: .public) maxUpdate=\(central.maximumUpdateValueLength)")
             subscribers[central.identifier] = central
-            // ~15 ms connection interval instead of the default 30-50 ms (smoother moves).
-            manager.setDesiredConnectionLatency(.low, for: central)
+            // ~15 ms connection interval instead of the default 30-50 ms.
+            // Toggle for benchmarking: `defaults write com.nattakit.airmouse.mac bleLowLatency -bool NO`.
+            let low = UserDefaults.standard.object(forKey: "bleLowLatency") as? Bool ?? BluetoothPeripheral.lowLatencyDefault
+            if low { manager.setDesiredConnectionLatency(.low, for: central) }
+            bleLog.info("connection latency \(low ? "low" : "default", privacy: .public)")
             for d in hub.subscribed(central.identifier, screen: screen()) { notify(d, to: central.identifier) }
             refreshState(); onPeerChange?()
         case .unsubscribed(let id):
@@ -122,7 +128,10 @@ final class BluetoothPeripheral: NSObject {
                 let isNew = hub.sessions[id] == nil
                 let replies = hub.received(value, from: id)
                 onMessage?()
-                for r in replies { notify(r, to: subscribers[id] == nil ? nil : id) }
+                for r in replies {
+                    if r.starts(with: Data(#"{"t":"benchResult""#.utf8)) { bleLog.info("bench \(String(decoding: r, as: UTF8.self), privacy: .public)") }
+                    notify(r, to: subscribers[id] == nil ? nil : id)
+                }
                 if isNew || hub.sessions[id]?.device != nil { onPeerChange?() }
             }
             refreshState()
@@ -137,9 +146,12 @@ final class BluetoothPeripheral: NSObject {
         let text = String(decoding: value.prefix(160), as: UTF8.self)
         if text.hasPrefix("{\"t\":\"move\"") {
             moveCount += 1
-            if Date().timeIntervalSince(lastMoveLog) > 2 {
-                bleLog.info("moves \(self.moveCount) (last \(text, privacy: .public))")
+            let dt = Date().timeIntervalSince(lastMoveLog)
+            if dt > 2 {
+                let rate = dt < 10 ? String(format: "%.1f Hz", Double(moveCount - movesAtLog) / dt) : "-"
+                bleLog.info("moves \(self.moveCount) (\(rate, privacy: .public), last \(text, privacy: .public))")
                 lastMoveLog = Date()
+                movesAtLog = moveCount
             }
         } else {
             bleLog.info("write \(value.count)B from \(id.uuidString.prefix(8), privacy: .public): \(text, privacy: .public)")

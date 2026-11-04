@@ -108,3 +108,25 @@ export class Outbox {
     this.items = [];
   }
 }
+
+// ---------- Finding the same Mac again (pure) ----------
+
+// iOS reports a Mac either by its advertised name ("AirMouse-Nattakit") or
+// its GAP name ("Nattakit MacBook"), and Macs rotate their Bluetooth
+// address, so a remembered id goes stale. Match loosely on any name we saw.
+export function nameKey(n: string): string {
+  return n.replace(/^AirMouse-/, '').replace(/['’]s\b/g, '').split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9-]/g, '');
+}
+
+export function sameMac(wanted: string, names: readonly (string | null | undefined)[]): boolean {
+  const w = nameKey(wanted);
+  return !!w && names.some((n) => !!n && (n === wanted || nameKey(n) === w));
+}
+
+// Pick the Mac to reconnect to: a name match, or the only AirMouse Mac around.
+export function pickMac(wanted: string, seen: readonly { id: string; names: (string | null | undefined)[] }[]): string | null {
+  const hit = seen.find((m) => sameMac(wanted, m.names));
+  if (hit) return hit.id;
+  const ids = new Set(seen.map((m) => m.id));
+  return ids.size === 1 ? seen[0].id : null;
+}

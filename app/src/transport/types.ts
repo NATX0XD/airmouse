@@ -59,4 +59,6 @@ export interface Transport {
   onMessage?(cb: (m: InboundMsg) => void): () => void;
   // Settings > Diagnostics, transports that have something to say (Bluetooth).
   debugStats?(): Record<string, string | number>;
+  // Bluetooth link benchmark (Diagnostics, airmouse://ble-bench).
+  bench?(opts?: { inFlight?: number; seconds?: number }): Promise<string>;
 }

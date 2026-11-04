@@ -1,7 +1,7 @@
 import type { Device, Subscription } from 'react-native-ble-plx';
 import { getBleManager } from './bleManager';
 import { MAC_NAME_PREFIX, MAC_RX_UUID, MAC_SERVICE_UUID, MAC_TX_UUID } from './bleIds';
-import { frame, moveWait, Outbox, unframe } from './bleFraming';
+import { frame, moveWait, Outbox, pickMac, sameMac, unframe } from './bleFraming';
 import { decodeInbound, helloMessage } from './protocol';
 import type { DeviceInfo, InboundMsg, Msg, Transport, TransportStatus } from './types';
 
@@ -17,7 +17,11 @@ export type BluetoothMac = { id: string; name: string };
 // moves arriving meanwhile merge in the outbox (~30-60 Hz on a 15-30 ms
 // connection interval).
 const WRITE_TIMEOUT_MS = 1000;
-const MAX_IN_FLIGHT = 3;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+// Bench (2026-11-04): 3 in flight showed 32 Hz "written" on the phone but the
+// Mac received the same 10-15 Hz as 1 in flight (ble-plx resolves early,
+// iOS just queues). 1 keeps the count honest and the queue empty.
+const MAX_IN_FLIGHT = 1;
 
 export const displayName = (advertised: string | null | undefined): string => {
   const n = (advertised ?? '').trim();
@@ -64,6 +68,9 @@ export class BleMacTransport implements Transport {
   private wanted = false;
   private outbox = new Outbox();
   private inFlight = 0;
+  private maxInFlight = MAX_IN_FLIGHT;
+  private latencies: number[] | null = null; // collected only during bench()
+  private lastBench = '';
   private recent: number[] = []; // completion times in the last second (write rate)
   private paceTimer: ReturnType<typeof setTimeout> | null = null;
   private lastMoveAt = 0;
@@ -160,22 +167,29 @@ export class BleMacTransport implements Transport {
     }
   }
 
+  // Scan for this Mac by name (both names iOS may report). Resolves early on
+  // a name match; at the timeout falls back to the only AirMouse Mac seen.
   private findByName(timeoutMs: number): Promise<string | null> {
     return new Promise((resolve) => {
-      let stop: (() => void) | null = null;
-      const timer = setTimeout(() => {
-        stop?.();
-        resolve(null);
-      }, timeoutMs);
-      stop = scanBluetoothMacs(
-        (mac) => {
-          if (mac.name !== this.name) return;
-          clearTimeout(timer);
-          stop?.();
-          resolve(mac.id);
-        },
-        () => {},
-      );
+      const manager = getBleManager();
+      const seen = new Map<string, (string | null)[]>();
+      let finished = false;
+      const end = (id: string | null) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        manager.stopDeviceScan();
+        resolve(id);
+      };
+      const timer = setTimeout(() => end(pickMac(this.name, [...seen].map(([id, names]) => ({ id, names })))), timeoutMs);
+      manager
+        .startDeviceScan([MAC_SERVICE_UUID], { allowDuplicates: false }, (error, device) => {
+          if (error || !device) return;
+          const names = [device.localName, device.name];
+          seen.set(device.id, [...(seen.get(device.id) ?? []), ...names]);
+          if (sameMac(this.name, names)) end(device.id);
+        })
+        .catch(() => end(null));
     });
   }
 
@@ -204,11 +218,47 @@ export class BleMacTransport implements Transport {
     this.emit('idle');
   }
 
+  // Synthetic 60 Hz zero moves for `seconds` over the live link: achieved
+  // write rate and write latency (docs/spec-v3.md 6, Diagnostics). The
+  // result is also sent to the Mac as {t:'bench'} so it shows in its log.
+  async bench(opts: { inFlight?: number; seconds?: number } = {}): Promise<string> {
+    const seconds = opts.seconds ?? 5;
+    for (let i = 0; i < 75 && !this.device; i++) await sleep(200); // wait for the link (launch via deep link)
+    if (!this.device) return (this.lastBench = 'no Bluetooth link');
+    this.maxInFlight = Math.max(1, Math.min(8, opts.inFlight ?? MAX_IN_FLIGHT));
+    this.lastBench = `running (${this.maxInFlight} in flight)…`;
+    const lat: number[] = [];
+    this.latencies = lat;
+    const startWrites = this.stats.writes;
+    const startErr = this.stats.errors + this.stats.timeouts;
+    const tick = setInterval(() => this.send({ t: 'move', dx: 0, dy: 0 }), 1000 / 60);
+    await sleep(seconds * 1000);
+    clearInterval(tick);
+    const written = this.stats.writes - startWrites;
+    await sleep(500); // let the last writes land (not counted in the rate)
+    this.latencies = null;
+    lat.sort((a, b) => a - b);
+    const q = (f: number) => (lat.length ? lat[Math.min(lat.length - 1, Math.floor(f * lat.length))] : 0);
+    const result = {
+      inFlight: this.maxInFlight,
+      hz: Math.round((written / seconds) * 10) / 10,
+      written,
+      failed: this.stats.errors + this.stats.timeouts - startErr,
+      p50: q(0.5),
+      p95: q(0.95),
+      max: lat.length ? lat[lat.length - 1] : 0,
+    };
+    this.maxInFlight = MAX_IN_FLIGHT;
+    this.lastBench = `${result.hz} Hz · ${result.inFlight} in flight · p50 ${result.p50} ms · p95 ${result.p95} ms · ${result.failed} failed`;
+    this.send({ t: 'bench', ...result } as never);
+    return this.lastBench;
+  }
+
   debugStats() {
     const s = this.stats;
     const now = Date.now();
     const rate = this.recent.filter((t) => now - t <= 1000).length;
-    return { link: this.device ? 'connected' : 'down', 'write rate': `${rate} Hz`, queued: this.outbox.size, 'in flight': this.inFlight, written: s.writes, failed: s.errors, timeouts: s.timeouts, 'last error': s.lastError };
+    return { link: this.device ? 'connected' : 'down', 'write rate': `${rate} Hz`, bench: this.lastBench, queued: this.outbox.size, 'in flight': this.inFlight, written: s.writes, failed: s.errors, timeouts: s.timeouts, 'last error': s.lastError };
   }
 
   send(msg: Msg): boolean {
@@ -242,7 +292,7 @@ export class BleMacTransport implements Transport {
   // characteristic, so completions can come early; the 16 ms pacing keeps
   // iOS's own queue bounded anyway.
   private flush() {
-    while (this.device && this.inFlight < MAX_IN_FLIGHT) {
+    while (this.device && this.inFlight < this.maxInFlight) {
       const head = this.outbox.peek();
       if (!head) return;
       if (head.t === 'move') {
@@ -261,9 +311,11 @@ export class BleMacTransport implements Transport {
       this.outbox.shift();
       const d = this.device;
       this.inFlight += 1;
+      const t0 = Date.now();
       this.write(d, frame(head))
         .then(() => {
           this.stats.writes += 1;
+          this.latencies?.push(Date.now() - t0);
           const now = Date.now();
           this.recent.push(now);
           while (this.recent.length && now - this.recent[0] > 1000) this.recent.shift();

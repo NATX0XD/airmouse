@@ -28,6 +28,11 @@ public final class BLEHub<Peer: Hashable> {
     public private(set) var writeStats: [Peer: MessageStats] = [:]
     private let makeSession: (Peer) -> ReceiverSession
     private let clock: () -> TimeInterval
+    /// Newline-framed stream per peer (the native iPhone central chunks long messages).
+    private var buffers: [Peer: Data] = [:]
+    /// Bluetooth benchmark per peer: start time and moves seen since.
+    private var bench: [Peer: (start: TimeInterval, moves: Int)] = [:]
+    static var maxBuffer: Int { 16 * 1024 }
 
     public init(clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
                 makeSession: @escaping (Peer) -> ReceiverSession) {
@@ -45,14 +50,58 @@ public final class BLEHub<Peer: Hashable> {
         return s
     }
 
-    /// One write on rx. Normally one JSON object; newline-separated objects are tolerated too.
+    /// One write on rx. Two framings:
+    /// - legacy: one complete JSON object per write (newline-separated objects tolerated);
+    /// - stream: messages end with "\n" and may be split over several writes
+    ///   (the native iPhone central chunks to the max write length).
     /// Returns encoded notifications to send back on tx.
     public func received(_ value: Data, from peer: Peer) -> [Data] {
         let s = session(for: peer)
         writeStats[peer, default: MessageStats()].record("write", at: clock())
-        let text = String(decoding: value, as: UTF8.self)
-        let parts = text.contains("\n") ? text.split(separator: "\n").map(String.init) : [text]
-        return parts.flatMap { s.handle(text: $0) }.map(Self.encode)
+        var lines: [Data] = []
+        if buffers[peer] == nil, !value.contains(0x0A) {
+            if Self.isJSONObject(value) { lines = [value] } else { buffers[peer] = value } // first chunk of a long message
+        } else {
+            var buf = (buffers[peer] ?? Data()) + value
+            while let i = buf.firstIndex(of: 0x0A) {
+                let line = buf[buf.startIndex..<i]
+                if !line.isEmpty { lines.append(Data(line)) }
+                buf = Data(buf[buf.index(after: i)...])
+            }
+            // Legacy "a\nb" without a final newline: a complete trailing object is a whole message.
+            if !buf.isEmpty, Self.isJSONObject(buf) { lines.append(buf); buf = Data() }
+            buffers[peer] = buf.isEmpty || buf.count > Self.maxBuffer ? nil : buf
+        }
+        var replies: [Data] = []
+        for line in lines {
+            if let r = benchLine(line, from: peer) { replies.append(r); continue }
+            replies += s.handle(text: String(decoding: line, as: UTF8.self)).map(Self.encode)
+        }
+        return replies
+    }
+
+    static func isJSONObject(_ d: Data) -> Bool {
+        (try? JSONSerialization.jsonObject(with: d)) is [String: Any]
+    }
+
+    /// `{"t":"bench","step":"start"|"end"}`: count moves in between and answer
+    /// `{"t":"benchResult","moves","seconds","hz"}` (Mac-side receive rate).
+    /// Moves are still handled normally. nil = not a bench line.
+    private func benchLine(_ line: Data, from peer: Peer) -> Data? {
+        if line.starts(with: Data(#"{"t":"move""#.utf8)) {
+            bench[peer]?.moves += 1
+            return nil
+        }
+        guard line.starts(with: Data(#"{"t":"bench""#.utf8)),
+              let o = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { return nil }
+        if o["step"] as? String == "start" {
+            bench[peer] = (clock(), 0)
+            return Data(#"{"t":"benchResult","step":"started"}"#.utf8)
+        }
+        guard let b = bench.removeValue(forKey: peer) else { return Data(#"{"t":"benchResult","moves":0,"seconds":0,"hz":0}"#.utf8) }
+        let secs = max(0.001, clock() - b.start)
+        let hz = (Double(b.moves) / secs * 10).rounded() / 10
+        return Data(#"{"t":"benchResult","moves":\#(b.moves),"seconds":\#((secs * 100).rounded() / 100),"hz":\#(hz)}"#.utf8)
     }
 
     /// Central subscribed to tx: reply with `screen` straight away.
@@ -65,6 +114,8 @@ public final class BLEHub<Peer: Hashable> {
     public func disconnected(_ peer: Peer) {
         sessions.removeValue(forKey: peer)?.disconnect()
         writeStats[peer] = nil
+        buffers[peer] = nil
+        bench[peer] = nil
     }
 
     public static func encode(_ msg: OutboundMessage) -> Data { Data(ProtocolCodec.encode(msg).utf8) }

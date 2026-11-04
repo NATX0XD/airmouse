@@ -70,4 +70,29 @@ import Testing
         _ = h.received(Data(#"{"t":"move","dx":0.27,"dy":-1.5}"#.utf8), from: "A")
         #expect(out.lines.last == "move +0.3 -1.5") // floats reach the output (log prints 1 dp)
     }
+
+    @Test func newlineFramedChunksAreRejoined() {
+        let (h, out) = hub()
+        let msg = Data(#"{"t":"button","b":"left","down":true}"#.utf8) + Data([0x0A])
+        _ = h.received(msg.prefix(10), from: "A")
+        #expect(out.lines.isEmpty)
+        _ = h.received(msg.dropFirst(10), from: "A")
+        #expect(out.lines == ["button left down"])
+        // Two framed messages in one write, then a legacy single-JSON write.
+        _ = h.received(Data((#"{"t":"move","dx":1,"dy":0}"# + "\n" + #"{"t":"button","b":"left","down":false}"# + "\n").utf8), from: "A")
+        _ = h.received(Data(#"{"t":"move","dx":2,"dy":0}"#.utf8), from: "A")
+        #expect(Array(out.lines.suffix(3)) == ["drag left +1.0 +0.0", "button left up", "move +2.0 +0.0"])
+    }
+
+    @Test func benchReportsReceiveRate() throws {
+        nonisolated(unsafe) var now = 100.0
+        let out = LogOutput()
+        let h = BLEHub<String>(clock: { now }) { _ in ReceiverSession(output: out, screen: { mbp }) }
+        _ = h.received(Data((#"{"t":"bench","step":"start"}"# + "\n").utf8), from: "A")
+        for _ in 0..<120 { _ = h.received(Data((#"{"t":"move","dx":0,"dy":0}"# + "\n").utf8), from: "A") }
+        now += 2
+        let r = try #require(h.received(Data((#"{"t":"bench","step":"end"}"# + "\n").utf8), from: "A").first)
+        let o = try #require(try JSONSerialization.jsonObject(with: r) as? [String: Any])
+        #expect(o["t"] as? String == "benchResult" && o["moves"] as? Int == 120 && o["hz"] as? Double == 60)
+    }
 }

@@ -190,7 +190,11 @@ function AirMouseApp() {
   }, [update]);
 
   const air = useAirMouse(settings, { onMessage, onBluetoothId });
-  const { connect, setPaused, setTouching, setAiming, setMotionOverride } = air;
+  const { connect, setPaused, setTouching, setAiming, setMotionOverride, bench } = air;
+  const benchRef = useRef(bench);
+  useEffect(() => {
+    benchRef.current = bench;
+  }, [bench]);
   const liveScreen = useRef(air.screen);
   useEffect(() => {
     liveScreen.current = air.screen;
@@ -272,6 +276,12 @@ function AirMouseApp() {
   useEffect(() => {
     const handle = (url: string | null | undefined) => {
       if (!url) return;
+      // Bluetooth benchmark: airmouse://ble-bench?inflight=1 (Diagnostics shows the result).
+      const b = /^airmouse:\/\/ble-bench(?:\?.*inflight=(\d+))?/i.exec(url);
+      if (b) {
+        benchRef.current(b[1] ? { inFlight: Number(b[1]) } : undefined);
+        return;
+      }
       const p = parsePreview(url);
       if (p) {
         setPreview(p);
@@ -474,6 +484,7 @@ function AirMouseApp() {
               kind={kind}
               macName={macName}
               diagnostics={air.diagnostics}
+              onBench={() => air.bench()}
               onShowTour={() => {
                 setTab('remote');
                 setTimeout(() => setTour(tourStart()), 400);

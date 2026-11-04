@@ -13,6 +13,7 @@ import { WifiTransport } from './transport/wifi';
 import { BleTransport } from './transport/ble';
 import { HidTransport } from './transport/hid';
 import { BleMacTransport, type BluetoothMac } from './transport/bleMac';
+import { NativeBleMacTransport, nativeBleAvailable } from './transport/bleNative';
 
 export type ConnectTarget =
   | { kind: 'wifi'; host: string; port: number; name?: string }
@@ -213,7 +214,8 @@ export function useAirMouse(settings: AppSettings, options: Options = {}) {
       let t: Transport;
       if (target.kind === 'wifi') t = new WifiTransport(target.host.trim(), target.port, deviceInfo());
       else if (target.kind === 'bluetooth') {
-        const b = new BleMacTransport({ id: target.id, name: target.name }, deviceInfo());
+        // Native central on iOS (write without response, no deadlock); ble-plx otherwise.
+        const b = nativeBleAvailable() ? new NativeBleMacTransport({ id: target.id, name: target.name }, deviceInfo()) : new BleMacTransport({ id: target.id, name: target.name }, deviceInfo());
         b.onIdChange = (mac) => onBluetoothId.current?.(mac);
         t = b;
       } else if (target.kind === 'ble') t = new BleTransport(settings.screenW, settings.screenH);
@@ -289,6 +291,8 @@ export function useAirMouse(settings: AppSettings, options: Options = {}) {
     };
   }, []);
 
+  const bench = useCallback((opts?: { inFlight?: number }) => transport.current?.bench?.(opts) ?? Promise.resolve('not on Bluetooth'), []);
+
   const addGyroListener = useCallback((cb: (s: GyroSample) => void) => {
     gyroListeners.current.add(cb);
     return () => {
@@ -296,7 +300,7 @@ export function useAirMouse(settings: AppSettings, options: Options = {}) {
     };
   }, []);
 
-  return { kind, status, detail, gyroAvailable, screen, connect, disconnect, send, setTouching, setPaused, setAiming, setMotionOverride, addGyroListener, history, diagnostics };
+  return { kind, status, detail, gyroAvailable, screen, connect, disconnect, send, setTouching, setPaused, setAiming, setMotionOverride, bench, addGyroListener, history, diagnostics };
 }
 
 export type AirMouse = ReturnType<typeof useAirMouse>;

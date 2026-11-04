@@ -66,3 +66,14 @@ test('moveWait paces moves to ~60 Hz', async () => {
   assert.equal(moveWait(1000, 900), 0);
   assert.equal(moveWait(1000, 0), 0);
 });
+
+test('the same Mac is found under its advertised or its GAP name', async () => {
+  const { sameMac, pickMac } = await import('./bleFraming.ts');
+  assert.equal(sameMac('Nattakit MacBook', ['AirMouse-Nattakit']), true);
+  assert.equal(sameMac('Nattakit', [null, 'Nattakit MacBook']), true);
+  assert.equal(sameMac("Nattakit's MacBook Pro", ['AirMouse-Nattakit']), true);
+  assert.equal(sameMac('Nattakit MacBook', ['AirMouse-Studio']), false);
+  assert.equal(pickMac('Nattakit MacBook', [{ id: 'a', names: ['AirMouse-Studio'] }, { id: 'b', names: ['AirMouse-Nattakit'] }]), 'b');
+  assert.equal(pickMac('Gone', [{ id: 'only', names: ['AirMouse-Studio'] }]), 'only'); // the one Mac around
+  assert.equal(pickMac('Gone', [{ id: 'a', names: ['x'] }, { id: 'b', names: ['y'] }]), null);
+});

@@ -6,7 +6,8 @@
     "modules": [
       "AirMouseDiscoveryModule",
       "AirMouseProximityModule",
-      "AirMouseSocketModule"
+      "AirMouseSocketModule",
+      "AirMouseBleModule"
     ]
   }
 }
