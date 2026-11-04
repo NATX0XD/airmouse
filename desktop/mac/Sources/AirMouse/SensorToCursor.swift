@@ -4,7 +4,7 @@ import SwiftUI
 enum SensorPreview { nonisolated(unsafe) static var frozen = false }
 
 /// Drives an animation clock; static (at `still`) under Reduce Motion or in preview renders.
-private struct Motion<Content: View>: View {
+struct Motion<Content: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduce
     var still: Double = 1.5
     @ViewBuilder var content: (Double) -> Content
@@ -87,8 +87,8 @@ struct SensorToCursorView: View {
 
     @ViewBuilder private var diagram: some View {
         switch page {
-        case 0: GyroDiagram()
-        case 1: DirectionsDiagram()
+        case 0: PhoneAxesView(mode: .axes, still: 0.8)
+        case 1: PhoneAxesView(mode: .cursor, still: 4.8)
         case 2: DriftDiagram()
         case 3: SmoothDiagram()
         case 4: EquationDiagram()
@@ -102,122 +102,10 @@ struct SensorToCursorView: View {
 
 // MARK: - Shared pieces
 
-private struct PhoneBody: View {
-    var w: CGFloat = 56
-    var tint: Color = Theme.blue
-    var body: some View {
-        RoundedRectangle(cornerRadius: w * 0.2, style: .continuous)
-            .fill(LinearGradient(colors: [tint.opacity(0.35), tint.opacity(0.12)], startPoint: .top, endPoint: .bottom))
-            .overlay(RoundedRectangle(cornerRadius: w * 0.2, style: .continuous).strokeBorder(Color.primary.opacity(0.55), lineWidth: 1.5))
-            .overlay(alignment: .top) { Capsule().fill(Color.primary.opacity(0.5)).frame(width: w * 0.3, height: 4).padding(.top, 6) }
-            .frame(width: w, height: w * 2.05)
-    }
-}
-
-/// Curved arrow along an ellipse; angles in degrees, increasing = clockwise on screen.
-private struct ArcArrow: Shape {
-    var from: Double, to: Double
-    func path(in r: CGRect) -> Path {
-        var p = Path()
-        let c = CGPoint(x: r.midX, y: r.midY), rx = r.width / 2, ry = r.height / 2
-        func pt(_ d: Double) -> CGPoint { CGPoint(x: c.x + rx * cos(d * .pi / 180), y: c.y + ry * sin(d * .pi / 180)) }
-        var d = from
-        p.move(to: pt(d))
-        while d < to { d += 4; p.addLine(to: pt(min(d, to))) }
-        let tip = pt(to), a = to * .pi / 180
-        var tx = -rx * sin(a), ty = ry * cos(a); let l = max(hypot(tx, ty), 0.001); tx /= l; ty /= l
-        let nx = -ty, ny = tx
-        p.move(to: CGPoint(x: tip.x - tx * 11 + nx * 6, y: tip.y - ty * 11 + ny * 6))
-        p.addLine(to: tip)
-        p.addLine(to: CGPoint(x: tip.x - tx * 11 - nx * 6, y: tip.y - ty * 11 - ny * 6))
-        return p
-    }
-}
-
 private func chip(_ text: String, _ color: Color) -> some View {
     Text(text).font(.system(size: 12, weight: .semibold)).foregroundStyle(color)
         .padding(.horizontal, 9).padding(.vertical, 3)
         .background(Capsule().fill(color.opacity(0.14)))
-}
-
-// MARK: - 1 Gyroscope
-
-private struct GyroDiagram: View {
-    var body: some View {
-        Motion(still: 0.45) { t in
-            let sway = sin(t * 1.6) * 7
-            let tick = Int(t * 20) % 20
-            VStack(spacing: 16) {
-                ZStack {
-                    ArcArrow(from: 200, to: 520).stroke(Theme.blue, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                        .frame(width: 190, height: 52).offset(y: 6)
-                    ArcArrow(from: -70, to: 250).stroke(Theme.purple, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                        .frame(width: 58, height: 170)
-                    PhoneBody(w: 58).rotationEffect(.degrees(sway)).scaleEffect(x: cos(sway * 0.1), y: 1)
-                    Text("yaw").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.blue).offset(x: 112, y: 28)
-                    Text("pitch").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.purple).offset(x: 44, y: -80)
-                    Text("roll").font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.cyan).offset(x: -112, y: -20)
-                    ArcArrow(from: 150, to: 450).stroke(Theme.cyan, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                        .frame(width: 112, height: 112).opacity(0.9)
-                }
-                .frame(height: 176)
-                HStack(spacing: 10) {
-                    HStack(spacing: 3) {
-                        ForEach(0..<20, id: \.self) { i in
-                            Capsule().fill(i == tick ? Theme.blue : Color.primary.opacity(0.15)).frame(width: 6, height: i == tick ? 20 : 12)
-                        }
-                    }
-                    chip("100 readings / second", Theme.blue)
-                    chip("every 10 ms", Theme.indigo)
-                }
-            }
-        }
-    }
-}
-
-// MARK: - 2 Directions
-
-private struct DirectionsDiagram: View {
-    var body: some View {
-        Motion(still: 0.6) { t in
-            let s = sin(t * 1.8)
-            HStack(spacing: 14) {
-                column("Turn left / right", "Cursor moves sideways", Theme.blue, active: true,
-                       cursor: CGPoint(x: 0.5 + 0.34 * s, y: 0.5)) {
-                    PhoneBody(w: 40, tint: Theme.blue).scaleEffect(x: cos(s * 0.5), y: 1).offset(x: s * 14)
-                }
-                column("Tilt up / down", "Cursor moves up and down", Theme.purple, active: true,
-                       cursor: CGPoint(x: 0.5, y: 0.5 + 0.3 * s)) {
-                    PhoneBody(w: 40, tint: Theme.purple).scaleEffect(x: 1, y: cos(s * 0.5)).offset(y: s * 8)
-                }
-                column("Twist your wrist", "Ignored", .gray, active: false, cursor: CGPoint(x: 0.5, y: 0.5)) {
-                    PhoneBody(w: 40, tint: .gray).rotationEffect(.degrees(s * 22))
-                }
-            }
-            .padding(.horizontal, 18)
-        }
-    }
-
-    private func column<P: View>(_ title: String, _ sub: String, _ color: Color, active: Bool, cursor: CGPoint,
-                                 @ViewBuilder phone: () -> P) -> some View {
-        VStack(spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.06))
-                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.primary.opacity(0.2), lineWidth: 1))
-                GeometryReader { g in
-                    Image(systemName: "cursorarrow").font(.system(size: 16)).foregroundStyle(active ? color : Color.secondary)
-                        .position(x: g.size.width * cursor.x, y: g.size.height * cursor.y)
-                }
-            }
-            .frame(height: 72)
-            phone().frame(height: 86).opacity(active ? 1 : 0.4)
-            VStack(spacing: 2) {
-                Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(active ? Color.primary : Color.secondary)
-                Text(sub).font(.system(size: 12)).foregroundStyle(active ? color : Color.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
 }
 
 // MARK: - 3 Drift

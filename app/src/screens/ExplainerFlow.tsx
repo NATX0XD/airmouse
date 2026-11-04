@@ -4,6 +4,7 @@ import { Animated, Image, Modal, PanResponder, Pressable, ScrollView, StyleSheet
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, Icon, T } from '../ui/components';
 import { space, usePalette, useReduceMotion } from '../ui/tokens';
+import { MotionDemo3D } from '../ui/MotionDemo3D';
 import type { GyroSample } from '../motion/engine';
 
 type Props = { visible: boolean; onDone: () => void; addGyroListener?: (cb: (sample: GyroSample) => void) => () => void };
@@ -77,10 +78,13 @@ export function ExplainerFlow({ visible, onDone, addGyroListener }: Props) {
           <View style={styles.sensorGrid}>{SENSOR_CARDS.map(([name, body, image]) => <View key={name} style={[styles.sensorCard, { backgroundColor: c.card, borderColor: c.separator }]}><Image source={image} style={styles.sensorImage} resizeMode="contain" /><T v="subhead" weight="600">{name}</T><T v="caption" color={c.secondaryLabel} style={styles.sensorBody}>{body}</T></View>)}</View>
           <View style={[styles.also, { borderColor: c.separator }]}><T v="caption" color={c.secondaryLabel}>Also used</T><T v="caption"><T weight="600">Camera</T> · scans the QR code to pair　 <T weight="600">Haptics</T> · gentle feedback</T></View>
           <View style={[styles.liveSmall, { backgroundColor: c.card, borderColor: c.separator }]}><T v="caption" color={c.secondaryLabel}>Live accelerometer tilt</T><T v="subhead" weight="600">{accel ? `x ${accel.x.toFixed(2)} · y ${accel.y.toFixed(2)} · z ${accel.z.toFixed(2)}` : 'Reading…'}</T></View>
+        </ScrollView> : index === 3 ? <ScrollView contentContainerStyle={styles.sensorOverview} showsVerticalScrollIndicator={false}>
+          <MotionDemo3D w={art} c={c} reduce={reduceMotion} />
+          <View style={styles.copy}><T v="title" center>{step.title}</T><T v="body" color={c.secondaryLabel} center style={styles.body}>{step.body}</T></View>
         </ScrollView> : <>
           <Image source={step.image} style={{ width: art, height: art * 0.72 }} resizeMode="contain" />
           <View style={styles.copy}><T v="title" center>{step.title}</T><T v="body" color={c.secondaryLabel} center style={styles.body}>{step.body}</T>{step.fact ? <T v="footnote" color={c.tint} center style={styles.fact}>Fun fact · {step.fact}</T> : null}</View>
-          {(index === 2 || index === 3) && addGyroListener ? <View style={[styles.live, { backgroundColor: c.card, borderColor: c.separator }]}><View style={[styles.liveDot, { left: 50 + Math.max(-42, Math.min(42, (gyro?.x ?? 0) * 90)), top: 50 + Math.max(-42, Math.min(42, (gyro?.z ?? 0) * 90)) }]} /><T v="caption" color={c.secondaryLabel}>Live sensor dot</T></View> : null}
+          {index === 2 && addGyroListener ? <View style={[styles.live, { backgroundColor: c.card, borderColor: c.separator }]}><View style={[styles.liveDot, { left: 50 + Math.max(-42, Math.min(42, (gyro?.x ?? 0) * 90)), top: 50 + Math.max(-42, Math.min(42, (gyro?.z ?? 0) * 90)) }]} /><T v="caption" color={c.secondaryLabel}>Live sensor dot</T></View> : null}
         </>}
       </Animated.View>
       <PrimaryButton title={index === STEPS.length - 1 ? 'Done' : 'Next'} onPress={next} />

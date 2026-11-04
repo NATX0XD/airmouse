@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, G, Line, Path, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import { Icon, PrimaryButton, T, type SymbolName } from '../ui/components';
 import { burstPos, dotsMoved, EXAMPLE_DEG_PER_SEC, EXAMPLE_DOTS_PER_DEG, rawLine, smoothLine } from '../ui/sensorToCursor';
+import { MotionDemo3D } from '../ui/MotionDemo3D';
 import { radius, space, usePalette, useReduceMotion, type Palette } from '../ui/tokens';
 
 type Props = { visible: boolean; onDone: () => void };
@@ -41,69 +42,8 @@ function Phone({ c, x, y, w = 54, h = 104, screenTint }: { c: Palette; x: number
   </G>;
 }
 
-// Curved arrow along an ellipse. Angles in degrees, increasing = clockwise on screen.
-function CurveArrow({ cx, cy, rx, ry, a0, a1, color, opacity = 1, width = 3.5 }: { cx: number; cy: number; rx: number; ry: number; a0: number; a1: number; color: string; opacity?: number; width?: number }) {
-  const rad = (d: number) => (d * Math.PI) / 180;
-  const pt = (a: number) => [cx + rx * Math.cos(rad(a)), cy + ry * Math.sin(rad(a))];
-  const [x0, y0] = pt(a0);
-  const [x1, y1] = pt(a1);
-  const sign = a1 > a0 ? 1 : -1;
-  const large = Math.abs(a1 - a0) > 180 ? 1 : 0;
-  let tx = -sign * rx * Math.sin(rad(a1));
-  let ty = sign * ry * Math.cos(rad(a1));
-  const len = Math.hypot(tx, ty) || 1;
-  tx /= len; ty /= len;
-  const nx = -ty; const ny = tx;
-  const head = `${x1 + tx * 8},${y1 + ty * 8} ${x1 - tx * 3 + nx * 6},${y1 - ty * 3 + ny * 6} ${x1 - tx * 3 - nx * 6},${y1 - ty * 3 - ny * 6}`;
-  return <G opacity={opacity}>
-    <Path d={`M ${x0} ${y0} A ${rx} ${ry} 0 ${large} ${sign > 0 ? 1 : 0} ${x1} ${y1}`} stroke={color} strokeWidth={width} strokeLinecap="round" fill="none" />
-    <Polygon points={head} fill={color} />
-  </G>;
-}
-
-// ---------- 1. Gyroscope measures turning speed ----------
-function GyroDiagram({ w, c, reduce }: DiagramProps) {
-  const t = useClock(reduce, 0.6);
-  const tilt = Math.sin(t * 1.6) * 9;
-  const sample = Math.floor(t * 100);
-  const pulse = (t * 100) % 1;
-  return <Canvas w={w} c={c}>
-    <G rotation={tilt} origin="160,100"><Phone c={c} x={160} y={100} /></G>
-    <CurveArrow cx={160} cy={46} rx={74} ry={16} a0={205} a1={335} color={c.axisZ} />
-    <CurveArrow cx={238} cy={100} rx={16} ry={66} a0={-65} a1={65} color={c.axisY} />
-    <CurveArrow cx={160} cy={100} rx={92} ry={92} a0={150} a1={210} color={c.axisX} />
-    <SvgText x={160} y={14} fontSize={11} fontWeight="700" fill={c.axisZ} textAnchor="middle">{'yaw: turn left/right'}</SvgText>
-    <SvgText x={262} y={104} fontSize={11} fontWeight="700" fill={c.axisY}>{'pitch'}</SvgText>
-    <SvgText x={12} y={104} fontSize={11} fontWeight="700" fill={c.axisX}>{'roll'}</SvgText>
-    <Circle cx={36} cy={176} r={4 + pulse * 3} fill={c.tint} fillOpacity={1 - pulse * 0.6} />
-    <SvgText x={46} y={180} fontSize={11} fontWeight="600" fill={c.label}>{`every 10 ms  ·  sample ${sample}`}</SvgText>
-  </Canvas>;
-}
-
-// ---------- 2. Three directions ----------
-function AxesDiagram({ w, c, reduce }: DiagramProps) {
-  const t = useClock(reduce, 0.5);
-  const phase = Math.floor((t / 2.2) % 3);
-  const k = Math.sin(((t / 2.2) % 1) * Math.PI * 2);
-  const dx = phase === 0 ? k * 10 : 0;
-  const dy = phase === 1 ? k * 9 : 0;
-  const roll = phase === 2 ? k * 14 : 0;
-  const op = (i: number) => (phase === i ? 1 : 0.35);
-  return <Canvas w={w} c={c}>
-    <G translateX={dx} translateY={dy} rotation={roll} origin="96,100"><Phone c={c} x={96} y={100} w={46} h={90} /></G>
-    <CurveArrow cx={96} cy={42} rx={52} ry={12} a0={205} a1={335} color={c.axisZ} opacity={op(0)} />
-    <CurveArrow cx={150} cy={100} rx={11} ry={50} a0={-65} a1={65} color={c.axisY} opacity={op(1)} />
-    <CurveArrow cx={96} cy={100} rx={74} ry={74} a0={150} a1={210} color={c.tertiaryLabel} opacity={0.9} width={3} />
-    <SvgText x={96} y={16} fontSize={11} fontWeight="700" fill={c.axisZ} textAnchor="middle" opacity={op(0)}>{'yaw: left/right'}</SvgText>
-    <SvgText x={160} y={104} fontSize={11} fontWeight="700" fill={c.axisY} opacity={op(1)}>{'pitch'}</SvgText>
-    <SvgText x={96} y={186} fontSize={11} fontWeight="700" fill={c.secondaryLabel} textAnchor="middle">{'roll: ignored'}</SvgText>
-    <Rect x={190} y={36} width={112} height={128} rx={14} fill={c.fill} stroke={c.separator} />
-    <Line x1={246} y1={44} x2={246} y2={156} stroke={c.separator} strokeDasharray="3 4" />
-    <Line x1={198} y1={100} x2={294} y2={100} stroke={c.separator} strokeDasharray="3 4" />
-    <Circle cx={246 + dx * 4.2} cy={100 + dy * 5} r={7} fill={c.tint} />
-    <SvgText x={246} y={182} fontSize={11} fontWeight="600" fill={c.secondaryLabel} textAnchor="middle">{'cursor on Mac'}</SvgText>
-  </Canvas>;
-}
+// ---------- 1 and 2: 3D phone with live or scripted motion ----------
+function MotionDiagram({ w, c, reduce }: DiagramProps) { return <MotionDemo3D w={w} c={c} reduce={reduce} />; }
 
 // ---------- 3. Removing the drift ----------
 function DriftDiagram({ w, c, reduce }: DiagramProps) {
@@ -254,8 +194,8 @@ function ChainDiagram({ w, c, reduce }: DiagramProps) {
 }
 
 const STEPS: Step[] = [
-  { title: 'The gyroscope measures turning speed.', body: "It doesn't know where you point. It only knows how fast you are turning, and it checks 100 times a second.", Diagram: GyroDiagram },
-  { title: 'Three directions.', body: 'Turn left or right and the cursor moves sideways. Tilt the top up or down and it moves up or down.', extra: 'Twisting your wrist is ignored.', Diagram: AxesDiagram },
+  { title: 'The gyroscope measures turning speed.', body: "It doesn't know where you point. It only knows how fast you are turning, and it checks 100 times a second.", Diagram: MotionDiagram },
+  { title: 'Three directions.', body: 'Turn left or right and the cursor moves sideways. Tilt the top up or down and it moves up or down.', extra: 'Twisting your wrist is ignored.', Diagram: MotionDiagram },
   { title: 'Removing the drift.', body: 'Even lying still, the sensor reads a tiny bit wrong. This is called bias. During calibration, AirMouse measures it while the phone rests on the screen for 2 seconds, then subtracts it.', extra: "So the cursor doesn't creep by itself.", Diagram: DriftDiagram },
   { title: 'Calming shaky hands.', body: 'A smart filter, the One Euro filter, smooths slow, shaky movements but lets quick moves through instantly. Tiny wobbles are squashed to almost zero.', Diagram: SmoothDiagram },
   { title: 'Speed × time = distance.', body: 'Turning speed × time × your calibration setting gives how many dots the cursor moves. About 29° per second for 10 ms is about 7 dots, so about 700 dots in one second.', extra: 'Flicking fast adds a little extra (acceleration).', Diagram: EquationDiagram },

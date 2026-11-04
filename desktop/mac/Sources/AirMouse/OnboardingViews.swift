@@ -282,7 +282,7 @@ private struct ValuePoint: View {
     }
 }
 
-private struct HowItWorksPage: View {
+struct HowItWorksPage: View {
     var step: Int
     var body: some View {
         if step == 0 { return AnyView(SensorOverviewPage()) }
@@ -295,7 +295,8 @@ private struct HowItWorksPage: View {
                     .font(.system(size: 17)).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center).frame(maxWidth: 560)
             }
-            AppIllustration(name: item.image, fallback: "iphone").frame(width: 400, height: 260)
+            if step == 3 { PhoneAxesView(mode: .cursor, still: 0.8).frame(width: 580, height: 260) }
+            else { AppIllustration(name: item.image, fallback: "iphone").frame(width: 400, height: 260) }
             if let fact = item.fact { Text("Fun fact · \(fact)").font(.system(size: 13)).foregroundStyle(Theme.blue) }
             Spacer(minLength: 8)
         }

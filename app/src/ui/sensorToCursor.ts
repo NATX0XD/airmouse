@@ -37,3 +37,24 @@ export function burstPos(i: number, phase: number): number {
   const within = i % 3;
   return ((group * 0.34 + within * 0.035 + phase) % 1 + 1) % 1;
 }
+
+const clamp1 = (v: number) => Math.min(1, Math.max(-1, v));
+
+/** Advance the demo cursor (-1..1, +y = down) from a gyro rate in rad/s, same signs as engine.ts: x = -gyroZ, y(down) = -gyroX. */
+export function stepCursor(p: { x: number; y: number }, rateX: number, rateZ: number, dt: number, gain = 1.4): { x: number; y: number } {
+  return { x: clamp1(p.x - rateZ * dt * gain), y: clamp1(p.y - rateX * dt * gain) };
+}
+
+/** Scripted demo: yaw, then pitch, then roll (3 s each). Angles in degrees; cursor -1..1. Roll leaves the cursor still. */
+export function autoPose(t: number): { phase: number; yaw: number; pitch: number; roll: number; cx: number; cy: number } {
+  const phase = Math.floor(t / 3) % 3;
+  const s = Math.sin(((t % 3) / 3) * Math.PI * 2);
+  return {
+    phase,
+    yaw: phase === 0 ? 28 * s : 0,
+    pitch: phase === 1 ? 20 * s : 0,
+    roll: phase === 2 ? 30 * s : 0,
+    cx: phase === 0 ? 0.85 * s : 0,
+    cy: phase === 1 ? -0.85 * s : 0,
+  };
+}

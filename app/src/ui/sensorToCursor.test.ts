@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { burstPos, dotsMoved, EXAMPLE_DEG_PER_SEC, EXAMPLE_DOTS_PER_DEG, rawLine, smoothLine, wobble } from './sensorToCursor.ts';
+import { autoPose, burstPos, stepCursor, dotsMoved, EXAMPLE_DEG_PER_SEC, EXAMPLE_DOTS_PER_DEG, rawLine, smoothLine, wobble } from './sensorToCursor.ts';
 
 test('worked example: 29 deg/s for 10 ms is about 7 dots, about 700 in a second', () => {
   assert.equal(Math.round(dotsMoved(EXAMPLE_DEG_PER_SEC, 10, EXAMPLE_DOTS_PER_DEG)), 7);
@@ -21,4 +21,19 @@ test('smooth line deviates far less than raw line', () => {
 
 test('burstPos stays in 0..1', () => {
   for (let i = 0; i < 12; i++) for (const ph of [0, 0.3, 0.99]) { const p = burstPos(i, ph); assert.ok(p >= 0 && p < 1); }
+});
+
+test('stepCursor follows engine signs and clamps', () => {
+  const turnedRight = stepCursor({ x: 0, y: 0 }, 0, -1, 0.1);
+  assert.ok(turnedRight.x > 0 && turnedRight.y === 0);
+  const tippedUp = stepCursor({ x: 0, y: 0 }, 1, 0, 0.1);
+  assert.ok(tippedUp.y < 0 && tippedUp.x === 0);
+  assert.equal(stepCursor({ x: 0.99, y: 0 }, 0, -50, 1).x, 1);
+});
+
+test('autoPose: roll leaves the cursor still', () => {
+  const roll = autoPose(6.75);
+  assert.equal(roll.phase, 2);
+  assert.ok(roll.roll !== 0 && roll.cx === 0 && roll.cy === 0);
+  assert.ok(autoPose(0.75).cx > 0);
 });

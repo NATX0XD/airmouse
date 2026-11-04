@@ -128,10 +128,14 @@ enum Previews {
         // About > From Sensor to Cursor
         SensorPreview.frozen = true
         for dark in [false, true] {
-            for i in [0, 2, 4, 6, 8] {
+            for i in [0, 1, 4, 8] {
                 render(SensorToCursorView(initialPage: i, onClose: {}), size: CGSize(width: 720, height: 620), dark: dark,
                        to: dir.appendingPathComponent("sensor-to-cursor-\(i + 1)-\(dark ? "dark" : "light").png"))
             }
+        }
+        for dark in [false, true] {
+            render(HowItWorksPage(step: 3).frame(width: 900, height: 560).background(Color(nsColor: .windowBackgroundColor)), size: CGSize(width: 900, height: 560), dark: dark,
+                   to: dir.appendingPathComponent("howitworks-turning-\(dark ? "dark" : "light").png"))
         }
         SensorPreview.frozen = false
         // About > Diagnostics (taller window so the section is in view)
