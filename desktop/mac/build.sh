@@ -42,6 +42,13 @@ for src in "illustrations/hero-pointing.png" "infographics/how-it-works.png"; do
     echo "Illustration: $src"
   fi
 done
+for src in mac3d/iphone-remote.png mac3d/target.png mac3d/cursor-click.png mac3d/shield-check.png mac3d/waves.png mac3d/gauge.png mac3d/info.png; do
+  if [[ -f "$ASSETS/$src" ]]; then
+    mkdir -p "$APP/Contents/Resources/Illustrations"
+    cp "$ASSETS/$src" "$APP/Contents/Resources/Illustrations/"
+    echo "Illustration: $src"
+  fi
+done
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

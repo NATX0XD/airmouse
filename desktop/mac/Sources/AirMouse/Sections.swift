@@ -1,6 +1,26 @@
 import SwiftUI
 import AirMouseCore
 
+private extension Date {
+    var airMouseDate: String {
+        formatted(Date.FormatStyle(
+            date: .abbreviated,
+            time: .omitted,
+            locale: Locale(identifier: "en_US_POSIX"),
+            calendar: Calendar(identifier: .gregorian)
+        ))
+    }
+
+    var airMouseDateTime: String {
+        formatted(Date.FormatStyle(
+            date: .abbreviated,
+            time: .shortened,
+            locale: Locale(identifier: "en_US_POSIX"),
+            calendar: Calendar(identifier: .gregorian)
+        ))
+    }
+}
+
 extension AppSection {
     var title: String {
         switch self {
@@ -52,7 +72,9 @@ struct RootView: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        Group {
+        ZStack {
+            AuroraBackground()
+            Group {
             if model.onboarding != nil {
                 OnboardingView(model: model)
                     .transition(.opacity)
@@ -65,8 +87,10 @@ struct RootView: View {
                         }
                     }
             }
+            }
         }
-        .frame(minWidth: 700, minHeight: 500)
+        .frame(minWidth: 740, minHeight: 600)
+        .environment(\.colorScheme, .dark)
         .animation(.easeInOut(duration: 0.3), value: model.onboarding == nil)
         .animation(.easeInOut(duration: 0.25), value: model.tour == nil)
         .onAppear { model.startTourIfNeeded(after: 1.0) }
@@ -76,24 +100,17 @@ struct RootView: View {
         NavigationSplitView {
             List(selection: $model.section) {
                 ForEach(AppSection.allCases, id: \.self) { s in
-                    HStack(spacing: 8) {
-                        SidebarIcon(section: s)
-                        Text(s.title)
-                        Spacer(minLength: 4)
-                        if s == .permissions, requiredMissing > 0 {
-                            Text("\(requiredMissing)")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .frame(minWidth: 18, minHeight: 18)
-                                .background(Circle().fill(Theme.warning))
-                        }
-                    }
+                    SidebarRow(section: s, selected: model.section, requiredMissing: requiredMissing)
                     .tag(s)
                     .modifier(TourRowMarker(section: s))
                 }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
+            .scrollContentBackground(.hidden)
+            .background(.ultraThinMaterial)
+            .background(Color.black.opacity(0.30))
+            .environment(\.colorScheme, .dark)
+            .navigationSplitViewColumnWidth(min: 164, ideal: 184, max: 220)
             .safeAreaInset(edge: .bottom) { SidebarStatus(model: model) }
         } detail: {
             Group {
@@ -115,6 +132,39 @@ struct RootView: View {
     }
 
     private var requiredMissing: Int { model.setup.warnings.filter { $0.requirement == .required }.count }
+}
+
+private struct SidebarRow: View {
+    let section: AppSection
+    let selected: AppSection
+    let requiredMissing: Int
+
+    var body: some View {
+        HStack(spacing: 8) {
+            SidebarIcon(section: section)
+            Text(section.title)
+            Spacer(minLength: 4)
+            if section == .permissions, requiredMissing > 0 {
+                Text("\(requiredMissing)")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(minWidth: 18, minHeight: 18)
+                    .background(Circle().fill(Theme.warning))
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.vertical, 2)
+        .listRowInsets(EdgeInsets(top: 4, leading: 10, bottom: 4, trailing: 10))
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(section == selected ? Color.white.opacity(0.16) : .clear)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Theme.purple.opacity(section == selected ? 0.65 : 0), lineWidth: 1)
+                        .shadow(color: Theme.purple.opacity(section == selected ? 0.75 : 0), radius: 12)
+                )
+        )
+    }
 }
 
 private struct TourRowMarker: ViewModifier {
@@ -169,6 +219,8 @@ struct Page<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollBounceBehavior(.basedOnSize)
+        .background(AuroraBackground())
+        .foregroundStyle(.white)
     }
 }
 
@@ -178,51 +230,60 @@ struct HomePage: View {
     var model: AppModel
 
     var body: some View {
-        Page(title: "AirMouse", subtitle: "Turn your iPhone into an air mouse for this Mac.") {
-            if let banner = model.banner { BannerRow(text: banner).transition(.move(edge: .top).combined(with: .opacity)) }
-            StatusCard(model: model).tourTarget(.statusCard)
-            if !model.setup.warnings.isEmpty {
-                PermissionWarningsCard(model: model, open: { model.openSetup(at: $0) })
-                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
-            }
-            HStack(spacing: 10) {
-                Button(action: model.requestCalibration) { Label("Calibrate", systemImage: "scope") }
-                    .buttonStyle(AuroraButtonStyle())
-                    .keyboardShortcut("k", modifiers: [.command])
-                    .tourTarget(.calibrate)
-                Button(action: model.centerCursor) { Label("Center Cursor", systemImage: "dot.circle.and.cursorarrow") }
-                    .buttonStyle(SoftButtonStyle())
-                    .disabled(!model.accessibilityTrusted)
-                    .tourTarget(.centerCursor)
-                Button(action: model.startPractice) { Label("Practice Clicking", systemImage: "target") }
-                    .buttonStyle(SoftButtonStyle())
-            }
-            HomeInfoRow(model: model)
-            if !model.isConnected {
-                Button { model.section = .pair } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "qrcode.viewfinder")
-                            .font(.system(size: 18, weight: .semibold)).foregroundStyle(Theme.blue)
-                            .frame(width: 34, height: 34)
-                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Theme.blue.opacity(0.12)))
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("Pair your iPhone").font(.system(size: 15, weight: .semibold))
-                            Text("Scan a QR code or pick this Mac under Nearby").font(.system(size: 13)).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(.tertiary)
+        Page(title: "AirMouse", subtitle: model.isConnected ? "Your iPhone is ready to point." : "Waiting for your iPhone…") {
+            if let banner = model.banner { BannerRow(text: banner) }
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
+                DashboardCard(title: "Connection", caption: model.isConnected ? "Connected and ready" : "Waiting for iPhone…", image: "waves", fallback: "wifi") {
+                    StatusLine(symbol: "wifi", label: "Wi-Fi", value: model.port == nil ? "Starting…" : (model.isConnected ? "Connected" : "Listening"), tint: Theme.cyan)
+                    StatusLine(symbol: "dot.radiowaves.left.and.right", label: "Bluetooth", value: bleLabel, tint: Theme.purple)
+                }.tourTarget(.statusCard)
+                DashboardCard(title: "Calibration", caption: calibrationCaption, image: "gauge", fallback: "speedometer") {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(calibrationValue).font(.system(size: 34, weight: .bold, design: .rounded)).monospacedDigit()
+                        Text("pt/rad").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
                     }
-                    .card()
-                    .contentShape(Rectangle())
+                    PillButton(title: model.lastCalibration == nil ? "Calibrate" : "Recalibrate", action: model.requestCalibration)
                 }
-                .buttonStyle(.plain)
+                DashboardCard(title: "Practice Clicking", caption: "Point, tap, and build confidence", image: "cursor-click", fallback: "cursorarrow.click") {
+                    PillButton(title: "Start Practice", action: model.startPractice).tourTarget(.centerCursor)
+                }
+                DashboardCard(title: "Pair iPhone", caption: "Scan a code or choose this Mac", image: "iphone-remote", fallback: "qrcode.viewfinder") {
+                    PillButton(title: "Open Pairing", action: { model.section = .pair })
+                }.onTapGesture { model.section = .pair }.tourTarget(.pairRow)
             }
+            DashboardCard(title: "Permissions", caption: model.setup.warnings.isEmpty ? "Everything is ready" : "1 needs attention", image: "shield-check", fallback: "lock.shield.fill") {
+                StatusLine(symbol: model.setup.warnings.isEmpty ? "checkmark.circle.fill" : "exclamationmark.triangle.fill", label: model.setup.warnings.isEmpty ? "All systems go" : "Review setup", value: "", tint: model.setup.warnings.isEmpty ? Theme.success : Theme.warning)
+                PillButton(title: "Review", action: { model.openSetup() })
+            }
+            HStack { Spacer(); RunButton(action: model.requestCalibration).tourTarget(.calibrate); Spacer() }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: model.banner)
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: model.setup.warnings)
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: model.isConnected)
     }
+
+    private var calibrationValue: String { model.lastCalibration?.sensitivity.map { "\(Int($0.rounded()))" } ?? "—" }
+    private var calibrationCaption: String { model.lastCalibration?.date.airMouseDate ?? "Not calibrated yet" }
+    private var bleLabel: String { switch model.bluetooth { case .off: "Off"; case .advertising: "Available"; case .connected: "Connected" } }
 }
+
+private struct DashboardCard<Content: View>: View {
+    var title: String; var caption: String; var image: String; var fallback: String; @ViewBuilder var content: () -> Content
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack { VStack(alignment: .leading, spacing: 3) { Text(title).font(.system(size: 17, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.78); Text(caption).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.72) }; Spacer(minLength: 4) }
+            content().frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(16).frame(minHeight: 124, alignment: .bottomLeading)
+        .background { RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous).fill(Theme.glassFill).background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)).overlay(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous).stroke(Theme.glassBorder, lineWidth: 0.8)).shadow(color: Theme.purple.opacity(0.18), radius: 20, y: 10) }
+        .overlay(alignment: .topTrailing) { AppIllustration(name: image, fallback: fallback).frame(width: 104, height: 104).offset(x: 10, y: -25).allowsHitTesting(false) }
+        .clipped()
+    }
+}
+
+private struct StatusLine: View { var symbol: String; var label: String; var value: String; var tint: Color; var body: some View { HStack(spacing: 8) { Image(systemName: symbol).foregroundStyle(tint).frame(width: 18); Text(label).font(.system(size: 13, weight: .medium)); Spacer(); Text(value).font(.system(size: 12)).foregroundStyle(.white.opacity(0.65)).lineLimit(1) } } }
+private struct PillButton: View { var title: String; var action: () -> Void; var body: some View { Button(title, action: action).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white).padding(.horizontal, 13).padding(.vertical, 7).background(Capsule().fill(Theme.aurora)).buttonStyle(.plain) } }
+private struct RunButton: View { var action: () -> Void; var body: some View { Button(action: action) { VStack(spacing: 2) { Image(systemName: "scope").font(.system(size: 24, weight: .semibold)); Text("Calibrate").font(.system(size: 13, weight: .bold)) }.foregroundStyle(.white).frame(width: 86, height: 86).background(Circle().fill(Theme.aurora).overlay(Circle().stroke(.white.opacity(0.28), lineWidth: 1))).shadow(color: Theme.blue.opacity(0.45), radius: 20, y: 8) }.buttonStyle(.plain) } }
 
 /// Fills Home's lower half: how it works + last calibration, one compact row.
 private struct HomeInfoRow: View {
@@ -241,8 +302,7 @@ private struct HomeInfoRow: View {
                         Text(r.sensitivity.map { "\(Int($0.rounded()))" } ?? "—")
                             .font(.system(size: 26, weight: .semibold, design: .rounded).monospacedDigit())
                         Text("pt/rad · bias \(r.biasOK ? "OK" : "skipped")").font(.system(size: 12)).foregroundStyle(.secondary)
-                        Text(r.date.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, locale: Locale(identifier: "en_US"),
-                                                               calendar: Calendar(identifier: .gregorian))))
+                        Text(r.date.airMouseDate)
                             .font(.system(size: 12)).foregroundStyle(.secondary)
                     } else {
                         Image(systemName: "scope").font(.system(size: 24, weight: .semibold)).foregroundStyle(Theme.purple)
@@ -407,7 +467,7 @@ struct CalibrationPage: View {
                         Divider().frame(height: 36).padding(.horizontal, 16)
                         Metric(value: r.biasOK ? "OK" : "Skipped", label: "Gyro bias", color: r.biasOK ? Theme.success : .secondary)
                         Divider().frame(height: 36).padding(.horizontal, 16)
-                        Metric(value: r.date.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: Locale(identifier: "en_US"), calendar: Calendar(identifier: .gregorian))), label: "Date", small: true)
+                        Metric(value: r.date.airMouseDateTime, label: "Date", small: true)
                         Spacer(minLength: 0)
                     }
                 } else {

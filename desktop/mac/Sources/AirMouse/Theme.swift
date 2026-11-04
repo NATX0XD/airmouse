@@ -23,6 +23,21 @@ enum Theme {
 
     static let cardRadius: CGFloat = 22
     static let buttonRadius: CGFloat = 14
+    static let glassFill = Color.black.opacity(0.30)
+    static let glassBorder = Color.white.opacity(0.12)
+    static let darkAurora = LinearGradient(colors: [Color(hex: 0x090B2A), Color(hex: 0x24135A), Color(hex: 0x100D36)], startPoint: .topLeading, endPoint: .bottomTrailing)
+}
+
+struct AuroraBackground: View {
+    var body: some View {
+        ZStack {
+            Theme.darkAurora
+            Circle().fill(Theme.blue.opacity(0.18)).frame(width: 420).blur(radius: 90).offset(x: -260, y: -250)
+            Circle().fill(Theme.purple.opacity(0.18)).frame(width: 460).blur(radius: 110).offset(x: 270, y: 250)
+            Circle().fill(Theme.cyan.opacity(0.08)).frame(width: 300).blur(radius: 90).offset(x: 120, y: -220)
+        }
+        .ignoresSafeArea()
+    }
 }
 
 // MARK: - Card
@@ -35,10 +50,11 @@ struct CardBackground: ViewModifier {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 let shape = RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                shape.fill(Color(nsColor: .controlBackgroundColor).opacity(0.85))
+                shape.fill(.ultraThinMaterial)
+                    .overlay(shape.fill(Theme.glassFill))
                     .overlay { if let tint { shape.fill(tint.opacity(0.08)) } }
-                    .overlay { shape.strokeBorder(tint?.opacity(0.35) ?? Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 0.5) }
-                    .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
+                    .overlay { shape.strokeBorder(tint?.opacity(0.35) ?? Theme.glassBorder, lineWidth: 0.8) }
+                    .shadow(color: Theme.indigo.opacity(0.18), radius: 22, y: 10)
             }
     }
 }

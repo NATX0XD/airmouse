@@ -95,7 +95,7 @@ enum Previews {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         func window(_ name: String, _ m: AppModel, _ section: AppSection, dark: Bool) {
             m.section = section
-            render(RootView(model: m).background(Color(nsColor: .windowBackgroundColor)), size: CGSize(width: 760, height: 540), dark: dark,
+            render(RootView(model: m).background(Color(nsColor: .windowBackgroundColor)), size: CGSize(width: 900, height: 640), dark: dark,
                    to: dir.appendingPathComponent("window-\(name)-\(dark ? "dark" : "light").png"))
         }
         for dark in [false, true] {

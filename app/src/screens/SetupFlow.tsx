@@ -3,7 +3,9 @@ import { LayoutAnimation, Modal, Pressable, ScrollView, StyleSheet, View } from 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { actionsFor, startAt, STEPS, stepCompleted, type PermissionId, type PermissionStatus, type Statuses } from '../setup/steps';
-import { Icon, IconCircle, PrimaryButton, SecondaryButton, StepRing, T, Tag, type CircleTone, type SymbolName } from '../ui/components';
+import { Icon, IconCircle, Material, PrimaryButton, SecondaryButton, StepRing, T, Tag, type CircleTone, type SymbolName } from '../ui/components';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Illustration } from '../ui/Illustration';
 import { radius, space, usePalette } from '../ui/tokens';
 
 // Same pattern as the Mac "Permissions" page: progress ring, checklist rows
@@ -101,24 +103,25 @@ export function SetupFlow(p: Props) {
 
   return (
     <Modal visible={p.visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={p.onDone}>
-      <View style={[styles.root, { backgroundColor: c.grouped, paddingTop: insets.top + space.sm }]}>
+      <LinearGradient colors={['#090B2A', '#24135A', '#100D36']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.root, { paddingTop: insets.top + space.sm }]}> 
         <ScrollView contentContainerStyle={styles.content}>
-          <T v="largeTitle">Permissions</T>
-          <T v="subhead" color={c.secondaryLabel}>
+          <Illustration name={open === 0 ? 'calib-place' : 'calib-done'} width={190} height={130} />
+          <T v="largeTitle" color="#FFFFFF">Permissions</T>
+          <T v="subhead" color="rgba(255,255,255,0.72)">
             AirMouse needs a few permissions to find your Mac and read the motion sensors.
           </T>
 
           <View style={styles.summary}>
             <StepRing done={done} total={STEPS.length} />
             <View style={{ flex: 1 }}>
-              <T v="title2">{all ? 'AirMouse Is Ready' : 'Almost Ready'}</T>
-              <T v="subhead" color={c.secondaryLabel}>
+              <T v="title2" color="#FFFFFF">{all ? 'AirMouse Is Ready' : 'Almost Ready'}</T>
+              <T v="subhead" color="rgba(255,255,255,0.72)">
                 {all ? 'Everything is set up.' : `${STEPS.length - done} more to check.`}
               </T>
             </View>
           </View>
 
-          <View style={[styles.list, { backgroundColor: c.card }]}>
+          <View style={styles.permissionStack}>
             {STEPS.map((step, i) => {
               const status = p.statuses[step.id];
               const copy = COPY[step.id];
@@ -126,8 +129,7 @@ export function SetupFlow(p: Props) {
               const isOpen = i === open;
               const a = actionsFor(step, status);
               return (
-                <View key={step.id}>
-                  {i > 0 ? <View style={[styles.sep, { backgroundColor: c.separator }]} /> : null}
+                <Material key={step.id} style={styles.permissionCard}>
                   <Pressable onPress={() => select(i)} accessibilityRole="button" accessibilityState={{ expanded: isOpen }} accessibilityLabel={`${copy.title}, ${statusLine(step.id, status)}`}>
                     <View style={styles.row}>
                       <IconCircle name={copy.icon} tone={copy.tone} size={40} />
@@ -170,20 +172,20 @@ export function SetupFlow(p: Props) {
                       ) : null}
                     </View>
                   ) : null}
-                </View>
+                </Material>
               );
             })}
           </View>
-          <T v="footnote" color={c.secondaryLabel} style={{ paddingHorizontal: space.lg }}>
+          <T v="footnote" color="rgba(255,255,255,0.64)" style={{ paddingHorizontal: space.lg }}>
             Status updates by itself while this page is open. You can change these later in Settings.
           </T>
         </ScrollView>
 
-        <View style={[styles.footer, { paddingBottom: insets.bottom + space.md, backgroundColor: c.grouped }]}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}> 
           <PrimaryButton title={all ? 'Get Started' : 'Continue'} onPress={p.onDone} disabled={!requiredOk} />
           <SecondaryButton title="Skip for Now" plain onPress={p.onDone} style={all && { opacity: 0 }} disabled={all} />
         </View>
-      </View>
+      </LinearGradient>
     </Modal>
   );
 }
@@ -192,7 +194,8 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { paddingHorizontal: space.margin, paddingTop: space.lg, paddingBottom: space.xl, gap: space.md },
   summary: { flexDirection: 'row', alignItems: 'center', gap: space.lg, paddingVertical: space.sm },
-  list: { borderRadius: radius.card, borderCurve: 'continuous', overflow: 'hidden' },
+  permissionStack: { gap: space.md },
+  permissionCard: { borderRadius: radius.card, borderCurve: 'continuous', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
   sep: { height: StyleSheet.hairlineWidth, marginLeft: 68 },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: 14 },
   titleLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },

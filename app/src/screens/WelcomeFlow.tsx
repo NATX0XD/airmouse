@@ -3,7 +3,7 @@ import { Animated, Modal, Pressable, StyleSheet, View, useAnimatedValue, useWind
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { pagerBack, pagerNext, WELCOME_PAGES, type Pager } from '../setup/onboarding';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CIRCLE_GRADIENTS, Icon, IconCircle, PrimaryButton, T, type CircleTone, type SymbolName } from '../ui/components';
+import { CIRCLE_GRADIENTS, Icon, IconCircle, Material, PrimaryButton, T, type CircleTone, type SymbolName } from '../ui/components';
 import { Illustration } from '../ui/Illustration';
 import { radius, space, usePalette, useReduceMotion } from '../ui/tokens';
 
@@ -32,7 +32,9 @@ export function WelcomeFlow(p: Props) {
 
   return (
     <Modal visible={p.visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={p.onDone}>
-      <View style={[styles.root, { backgroundColor: c.background, paddingTop: insets.top + space.sm, paddingBottom: insets.bottom + space.lg }]}>
+      <LinearGradient colors={['#090B2A', '#24135A', '#100D36']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.root, { paddingTop: insets.top + space.sm, paddingBottom: insets.bottom + space.lg }]}> 
+        <View pointerEvents="none" style={[styles.orb, styles.orbBlue]} />
+        <View pointerEvents="none" style={[styles.orb, styles.orbPurple]} />
         <View style={styles.header}>
           <Pressable
             onPress={() => setPager(pagerBack(pager))}
@@ -61,15 +63,15 @@ export function WelcomeFlow(p: Props) {
                 <T v="largeTitle" center>
                   Meet AirMouse
                 </T>
-                <T color={c.secondaryLabel} center>
+                <T color="rgba(255,255,255,0.74)" center>
                   Your iPhone becomes a pointer for your Mac.
                 </T>
               </View>
-              <View style={[styles.card, { backgroundColor: c.dark ? c.card : c.grouped }]}>
+              <Material style={styles.glassCard}>
                 <Point icon="cursorarrow.motionlines" tone="blue" title="Point to move" body="Turn your iPhone, the cursor follows." />
                 <Point icon="hand.tap.fill" tone="purple" title="Tap to click" body="Tap the touch area, hold to drag." />
                 <Point icon="wifi" tone="teal" title="Works over Wi-Fi or Bluetooth" body="No cables, no dongle." />
-              </View>
+              </Material>
             </>
           ) : page === 'how' ? (
             <>
@@ -77,18 +79,18 @@ export function WelcomeFlow(p: Props) {
                 <T v="largeTitle" center>
                   How It Works
                 </T>
-                <T color={c.secondaryLabel} center style={{ maxWidth: 320 }}>
+                <T color="rgba(255,255,255,0.74)" center style={{ maxWidth: 320 }}>
                   Three steps, about a hundred times a second.
                 </T>
               </View>
-              <View style={[styles.card, { backgroundColor: c.dark ? c.card : c.grouped, paddingVertical: space.xl }]}>
+              <Material style={[styles.glassCard, { paddingVertical: space.xl }]}> 
                 <Illustration name="how-it-works" width={artW - space.xl * 2} height={130} />
-              </View>
-              <View style={[styles.card, { backgroundColor: c.dark ? c.card : c.grouped }]}>
+              </Material>
+              <Material style={styles.glassCard}>
                 <Point icon="gyroscope" tone="indigo" title="The gyroscope" body="measures how fast your hand turns, on three axes." />
                 <Point icon="waveform.path" tone="blue" title="A One Euro filter" body="smooths out hand shake but stays quick when you move fast." />
                 <Point icon="cursorarrow.rays" tone="purple" title="Your Mac" body="moves the real cursor, clicks and scrolls." />
-              </View>
+              </Material>
             </>
           ) : (
             <>
@@ -97,15 +99,15 @@ export function WelcomeFlow(p: Props) {
                 <T v="largeTitle" center>
                   Get AirMouse for Mac
                 </T>
-                <T color={c.secondaryLabel} center style={{ maxWidth: 320 }}>
+                <T color="rgba(255,255,255,0.74)" center style={{ maxWidth: 320 }}>
                   Open AirMouse on your Mac. It shows a QR code to pair.
                 </T>
               </View>
-              <View style={[styles.card, { backgroundColor: c.dark ? c.card : c.grouped }]}>
+              <Material style={styles.glassCard}>
                 <NumberedStep n={1} text="Install AirMouse on your Mac and open it." />
                 <NumberedStep n={2} text="Allow Pointer Control when your Mac asks." />
                 <NumberedStep n={3} text="Scan the QR code, or pick your Mac from the list." />
-              </View>
+              </Material>
               <View style={[styles.linkSlot, { borderColor: c.separator }]}>
                 <Icon name="link" size={15} color={c.secondaryLabel} />
                 <T v="footnote" color={c.secondaryLabel}>
@@ -117,7 +119,7 @@ export function WelcomeFlow(p: Props) {
         </Animated.View>
 
         <PrimaryButton title={page === 'getMac' ? 'I Already Have It' : 'Continue'} onPress={next} />
-      </View>
+      </LinearGradient>
     </Modal>
   );
 }
@@ -161,6 +163,10 @@ const styles = StyleSheet.create({
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.xl },
   copy: { gap: space.sm, alignItems: 'center' },
   card: { alignSelf: 'stretch', borderRadius: radius.card, borderCurve: 'continuous', padding: space.lg, gap: space.lg },
+  glassCard: { alignSelf: 'stretch', borderRadius: radius.card, borderCurve: 'continuous', overflow: 'hidden', padding: space.lg, gap: space.lg, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
+  orb: { position: 'absolute', width: 260, height: 260, borderRadius: 130, opacity: 0.28 },
+  orbBlue: { backgroundColor: '#0A84FF', top: -80, left: -120 },
+  orbPurple: { backgroundColor: '#BF5AF2', bottom: 80, right: -120 },
   point: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   num: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', marginHorizontal: 3 },
   linkSlot: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderStyle: 'dashed', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 },

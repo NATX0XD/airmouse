@@ -29,6 +29,20 @@ struct Illustration: View {
     }
 }
 
+struct AppIllustration: View {
+    var name: String
+    var fallback: String
+    var body: some View {
+        if let dir = Bundle.main.resourceURL?.appendingPathComponent("Illustrations"),
+           let image = NSImage(contentsOf: dir.appendingPathComponent("\(name).png")) {
+            Image(nsImage: image).resizable().aspectRatio(contentMode: .fit)
+        } else {
+            Image(systemName: fallback).resizable().aspectRatio(contentMode: .fit)
+                .symbolRenderingMode(.hierarchical).foregroundStyle(Theme.cyan, Theme.purple)
+        }
+    }
+}
+
 /// Phone -> waves -> Mac with cursor.
 private struct HeroVector: View {
     var body: some View {
@@ -98,6 +112,7 @@ private struct LaptopMock: View {
                 .fill(LinearGradient(colors: [Color(hex: 0xC7C7CC), Color(hex: 0x8E8E93)], startPoint: .top, endPoint: .bottom))
                 .frame(width: width, height: 12)
         }
+        .background(AuroraBackground())
         .shadow(color: .black.opacity(0.2), radius: 14, y: 8)
     }
 }
@@ -136,7 +151,7 @@ struct HowItWorksStrip: View {
                     }
                     .frame(width: big ? 62 : 32, height: big ? 62 : 32)
                     .shadow(color: Theme.indigo.opacity(0.3), radius: big ? 8 : 4, y: 3)
-                    Text(n.1).font(.system(size: big ? 15 : 13, weight: .semibold))
+                    Text(n.1).font(.system(size: big ? 15 : 13, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.72)
                     Text(n.2).font(.system(size: big ? 13 : 12)).foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -154,7 +169,9 @@ struct OnboardingView: View {
 
     var body: some View {
         let flow = model.onboarding ?? OnboardingFlow()
-        VStack(spacing: 0) {
+        ZStack {
+            AuroraBackground()
+            VStack(spacing: 0) {
             Group {
                 switch flow.current {
                 case .welcome?: WelcomePage()
@@ -170,7 +187,7 @@ struct OnboardingView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
 
-            Divider()
+            Divider().overlay(Color.white.opacity(0.12))
             HStack {
                 Button("Back") { model.onboardingBack() }
                     .opacity(flow.canGoBack ? 1 : 0)
@@ -191,6 +208,8 @@ struct OnboardingView: View {
                 .keyboardShortcut(.defaultAction)
             }
             .padding(.horizontal, 24).padding(.vertical, 14)
+            .background(.regularMaterial.opacity(0.32))
+            }
         }
         .animation(.spring(response: 0.45, dampingFraction: 0.86), value: flow.index)
     }
@@ -209,7 +228,7 @@ private struct WelcomePage: View {
     var body: some View {
         VStack(spacing: 22) {
             Spacer(minLength: 8)
-            Illustration(kind: .heroPointing).frame(maxHeight: 190)
+            AppIllustration(name: "iphone-remote", fallback: "iphone").frame(width: 250, height: 190)
             VStack(spacing: 8) {
                 Text("Welcome to AirMouse").font(.system(size: 34, weight: .bold))
                 Text("Turn your iPhone into an air mouse for your Mac.")
@@ -241,7 +260,7 @@ private struct ValuePoint: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: 112, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.primary.opacity(0.05)))
+        .card()
     }
 }
 
@@ -270,7 +289,7 @@ private struct GetIPhonePage: View {
     var model: AppModel
     var body: some View {
         HStack(spacing: 40) {
-            PhoneMock(size: 280)
+            AppIllustration(name: "iphone-remote", fallback: "iphone").frame(width: 190, height: 280)
             VStack(alignment: .leading, spacing: 14) {
                 Text("Get AirMouse on Your iPhone").font(.system(size: 28, weight: .bold))
                     .fixedSize(horizontal: false, vertical: true)
@@ -295,6 +314,7 @@ private struct GetIPhonePage: View {
                 .padding(.top, 6)
             }
             .frame(maxWidth: 360, alignment: .leading)
+            .card()
         }
         .padding(.horizontal, 40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

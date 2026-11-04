@@ -205,20 +205,14 @@ struct PermissionsPage: View {
         let done = flow.steps.filter(flow.isSatisfied).count
         Page(title: "Permissions", subtitle: "AirMouse needs a few permissions to control the pointer and talk to your iPhone.") {
             ProgressHeader(done: done, total: flow.steps.count, ready: flow.allRequiredGranted)
-            VStack(spacing: 0) {
+            VStack(spacing: 12) {
                 ForEach(Array(flow.steps.enumerated()), id: \.element) { i, k in
-                    if i > 0 { Divider().padding(.leading, 56) }
                     PermissionStepRow(model: model, kind: k, number: i + 1, expanded: flow.current == k)
+                        .card(tint: flow.status(k) == .granted ? Theme.success : (flow.current == k ? k.color : nil))
                 }
             }
-            .padding(.horizontal, 16).padding(.vertical, 4)
+            .padding(.vertical, 4)
             .frame(maxWidth: .infinity)
-            .background {
-                let shape = RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                shape.fill(Color(nsColor: .controlBackgroundColor).opacity(0.85))
-                    .overlay { shape.strokeBorder(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 0.5) }
-                    .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
-            }
             Text("Status updates by itself while this page is open.")
                 .font(.system(size: 12)).foregroundStyle(.tertiary)
         }

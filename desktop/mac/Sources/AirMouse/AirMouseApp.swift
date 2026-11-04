@@ -23,9 +23,9 @@ struct AirMouseApp: App {
         Window("AirMouse", id: "main") {
             RootView(model: model)
         }
-        .defaultSize(width: 760, height: 540)
+        .defaultSize(width: 900, height: 640)
         .windowResizability(.contentMinSize)
-        .windowToolbarStyle(.unified)
+        .windowStyle(.hiddenTitleBar)
         .defaultPosition(.center)
         .commands {
             CommandGroup(replacing: .newItem) {}

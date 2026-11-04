@@ -23,18 +23,18 @@ export type IllustrationName =
 // replace `null` with require('../../assets/illustrations/<name>.png').
 // Until then the vector placeholder (or the animated `children`) is shown.
 const RASTER: Record<IllustrationName, ImageSourcePropType | null> = {
-  'hero-pointing': null,
-  'calib-place': null,
+  'hero-pointing': require('../../assets/illustrations/hero-pointing.png'),
+  'calib-place': require('../../assets/illustrations/calib-place.png'),
   'calib-point-left': null,
   'calib-point-right': null,
-  'calib-done': null,
+  'calib-done': require('../../assets/illustrations/calib-done.png'),
   'connect-wifi': null,
   'connect-bluetooth': null,
   'connect-qr': null,
   'connect-ip': null,
   'gyro-axes': null,
   'how-it-works': null,
-  'get-mac': null,
+  'get-mac': require('../../assets/illustrations/get-mac.png'),
 };
 
 const BADGES: Partial<Record<IllustrationName, { icon: SymbolName; color: string; gradient?: boolean }>> = {
