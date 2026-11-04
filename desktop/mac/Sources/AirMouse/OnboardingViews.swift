@@ -176,6 +176,7 @@ struct HowItWorksStrip: View {
 
 struct OnboardingView: View {
     var model: AppModel
+    @State private var explainerIndex = 0
 
     var body: some View {
         let flow = model.onboarding ?? OnboardingFlow()
@@ -185,7 +186,7 @@ struct OnboardingView: View {
             Group {
                 switch flow.current {
                 case .welcome?: WelcomePage()
-                case .howItWorks?: HowItWorksPage()
+                case .howItWorks?: HowItWorksPage(step: explainerIndex)
                 case .getIPhone?: GetIPhonePage(model: model)
                 case .permissions?: PermissionsPage(model: model, assistant: true)
                 case nil: EmptyView()
@@ -210,7 +211,7 @@ struct OnboardingView: View {
                     }
                 }
                 Spacer()
-                Button(action: model.onboardingNext) {
+                Button(action: advance(flow)) {
                     Text(continueTitle(flow)).frame(minWidth: 110)
                 }
                 .buttonStyle(.borderedProminent)
@@ -223,11 +224,17 @@ struct OnboardingView: View {
             }
         }
         .animation(.spring(response: 0.45, dampingFraction: 0.86), value: flow.index)
+        .onChange(of: flow.current) { _, page in if page != .howItWorks { explainerIndex = 0 } }
+    }
+
+    private func advance(_ flow: OnboardingFlow) -> () -> Void {
+        { if flow.current == .howItWorks && explainerIndex < ExplainerContent.steps.count - 1 { explainerIndex += 1 } else { model.onboardingNext() } }
     }
 
     private func continueTitle(_ f: OnboardingFlow) -> String {
         switch f.current {
         case .welcome?: "Get Started"
+        case .howItWorks?: explainerIndex == ExplainerContent.steps.count - 1 ? "Done" : "Next"
         case .getIPhone?: "I Already Have It"
         case .permissions?: model.setup.allRequiredGranted ? "Start Using AirMouse" : "Continue Anyway"
         default: "Continue"
@@ -276,24 +283,37 @@ private struct ValuePoint: View {
 }
 
 private struct HowItWorksPage: View {
+    var step: Int
     var body: some View {
-        VStack(spacing: 26) {
+        let item = ExplainerContent.steps[step]
+        VStack(spacing: 20) {
             Spacer(minLength: 8)
             VStack(spacing: 8) {
-                Text("How It Works").font(.system(size: 34, weight: .bold))
-                Text("AirMouse reads your iPhone’s gyroscope about 100 times a second.")
+                Text(item.title).font(.system(size: 30, weight: .bold)).multilineTextAlignment(.center)
+                Text(item.body)
                     .font(.system(size: 17)).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+                    .multilineTextAlignment(.center).frame(maxWidth: 560)
             }
-            Illustration(kind: .howItWorks).frame(maxWidth: 620)
-            Text("Hold the touch pad to point, so the cursor only moves when you want it to.")
-                .font(.system(size: 13)).foregroundStyle(.secondary)
-                .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(Capsule().fill(Color.primary.opacity(0.05)))
+            AppIllustration(name: item.image, fallback: "iphone").frame(width: 400, height: 260)
+            if let fact = item.fact { Text("Fun fact · \(fact)").font(.system(size: 13)).foregroundStyle(Theme.blue) }
             Spacer(minLength: 8)
         }
         .padding(.horizontal, 32)
     }
+}
+
+private enum ExplainerContent {
+    struct Step { let title: String; let body: String; let image: String; let fact: String? }
+    static let steps: [Step] = [
+        .init(title: "Your iPhone feels movement.", body: "Inside your iPhone is a tiny motion sensor called a gyroscope. It notices when you turn or tilt the phone.", image: "explainer/01-gyro", fact: nil),
+        .init(title: "It checks 100 times a second.", body: "Every hundredth of a second, AirMouse asks the sensor: “How fast are you turning right now?”", image: "explainer/02-sampling", fact: "That is faster than a blink."),
+        .init(title: "Turning becomes moving.", body: "Turn left or right and the pointer moves sideways. Tilt up or down and it moves up or down.", image: "explainer/03-direction", fact: nil),
+        .init(title: "Smoothing out shaky hands.", body: "Everyone's hands shake a little. AirMouse filters out tiny wobbles, so the pointer stays steady but still follows quick moves.", image: "explainer/04-smoothing", fact: nil),
+        .init(title: "Sending it to your Mac.", body: "The phone sends small messages (“move 3 dots right”) over Wi-Fi or Bluetooth. Nothing leaves your home network.", image: "explainer/05-sending", fact: nil),
+        .init(title: "Your Mac moves the pointer.", body: "The AirMouse app on your Mac receives each message and moves the cursor smoothly at your screen's refresh rate.", image: "explainer/06-mac-cursor", fact: nil),
+        .init(title: "Calibration makes it accurate.", body: "By pointing at 5 dots, AirMouse learns how far the cursor should move when you turn, for your screen and your distance.", image: "explainer/07-calibration", fact: nil),
+        .init(title: "Touch to point, tap to click.", body: "Hold the touch pad to move, tap to click, and use the buttons for right click and scrolling.", image: "explainer/08-touch-click", fact: nil),
+    ]
 }
 
 private struct GetIPhonePage: View {

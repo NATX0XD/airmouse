@@ -650,6 +650,7 @@ struct AboutPage: View {
             .card()
             HStack(spacing: 10) {
                 Button("Show Welcome", action: model.showWelcome).buttonStyle(SoftButtonStyle()).frame(width: 150)
+                Button("How It Works", action: model.showHowItWorks).buttonStyle(SoftButtonStyle()).frame(width: 150)
                 Button("Show Tour", action: model.startTour).buttonStyle(SoftButtonStyle()).frame(width: 150)
             }
             DiagnosticsSection(model: model).padding(.top, 8)

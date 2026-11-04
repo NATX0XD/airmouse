@@ -22,6 +22,7 @@ import { usePermissions } from './src/setup/usePermissions';
 import { missing, STEPS, stepCompleted, type PermissionId } from './src/setup/steps';
 import { FLAG_KEYS, launchStep, shouldStartTour, TOUR_IDLE, tourNext, tourSkip, tourStart, type Tour } from './src/setup/onboarding';
 import { WelcomeFlow } from './src/screens/WelcomeFlow';
+import { ExplainerFlow } from './src/screens/ExplainerFlow';
 import { TourOverlay, TourProvider } from './src/ui/Tour';
 import { WARNING_TEXT } from './src/setup/warnings';
 import { TabBar } from './src/ui/TabBar';
@@ -109,6 +110,7 @@ function AirMouseApp() {
   const perms = usePermissions(setupOpen);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [welcomeSession, setWelcomeSession] = useState(0);
+  const [explainerOpen, setExplainerOpen] = useState(false);
   const [tour, setTour] = useState<Tour>(TOUR_IDLE);
   const [tourDone, setTourDone] = useState(true); // set from storage at launch
   const openSetup = useCallback((step?: PermissionId) => {
@@ -493,6 +495,7 @@ function AirMouseApp() {
                 setWelcomeSession((n) => n + 1);
                 setWelcomeOpen(true);
               }}
+              onShowExplainer={() => setExplainerOpen(true)}
             />
           )}
           <TabBar
@@ -540,7 +543,8 @@ function AirMouseApp() {
 
       <CalibrationPrompt visible={promptVisible && wantPrompt} onStart={startFromPrompt} onLater={() => setPromptLater(true)} />
 
-      <WelcomeFlow key={`welcome-${welcomeSession}-${preview?.page ?? 0}`} visible={welcomeOpen} startPage={preview?.page} onDone={finishWelcome} />
+      <WelcomeFlow key={`welcome-${welcomeSession}-${preview?.page ?? 0}`} visible={welcomeOpen} startPage={preview?.page} onDone={finishWelcome} addGyroListener={air.addGyroListener} />
+      <ExplainerFlow visible={explainerOpen} onDone={() => setExplainerOpen(false)} addGyroListener={air.addGyroListener} />
 
       <SetupFlow
         key={`setup-${setupSession}-${setupStep ?? ''}`}

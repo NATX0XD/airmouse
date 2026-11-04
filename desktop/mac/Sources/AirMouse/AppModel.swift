@@ -238,6 +238,8 @@ final class AppModel {
 
     func showWelcome() { tour = nil; onboarding = OnboardingFlow() }
 
+    func showHowItWorks() { tour = nil; onboarding = OnboardingFlow(pages: [.howItWorks]) }
+
     func startTourIfNeeded(after delay: Double = 0.7) {
         guard onboarding == nil, store.shouldStartTour, tour == nil else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
