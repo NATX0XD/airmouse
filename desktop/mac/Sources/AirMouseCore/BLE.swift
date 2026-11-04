@@ -24,9 +24,19 @@ public enum BLESpec {
 /// The CoreBluetooth layer only forwards raw bytes here, so `swift test` covers it without hardware.
 public final class BLEHub<Peer: Hashable> {
     public private(set) var sessions: [Peer: ReceiverSession] = [:]
+    /// GATT writes per central (one write may carry several newline-separated messages).
+    public private(set) var writeStats: [Peer: MessageStats] = [:]
     private let makeSession: (Peer) -> ReceiverSession
+    private let clock: () -> TimeInterval
 
-    public init(makeSession: @escaping (Peer) -> ReceiverSession) { self.makeSession = makeSession }
+    public init(clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+                makeSession: @escaping (Peer) -> ReceiverSession) {
+        self.makeSession = makeSession
+        self.clock = clock
+    }
+
+    /// Writes per second from this central (Diagnostics).
+    public func writeRate(_ peer: Peer, now: TimeInterval) -> Double { writeStats[peer]?.rate(now: now) ?? 0 }
 
     public func session(for peer: Peer) -> ReceiverSession {
         if let s = sessions[peer] { return s }
@@ -39,6 +49,7 @@ public final class BLEHub<Peer: Hashable> {
     /// Returns encoded notifications to send back on tx.
     public func received(_ value: Data, from peer: Peer) -> [Data] {
         let s = session(for: peer)
+        writeStats[peer, default: MessageStats()].record("write", at: clock())
         let text = String(decoding: value, as: UTF8.self)
         let parts = text.contains("\n") ? text.split(separator: "\n").map(String.init) : [text]
         return parts.flatMap { s.handle(text: $0) }.map(Self.encode)
@@ -53,6 +64,7 @@ public final class BLEHub<Peer: Hashable> {
     /// Central unsubscribed / disconnected: release its buttons and forget it.
     public func disconnected(_ peer: Peer) {
         sessions.removeValue(forKey: peer)?.disconnect()
+        writeStats[peer] = nil
     }
 
     public static func encode(_ msg: OutboundMessage) -> Data { Data(ProtocolCodec.encode(msg).utf8) }

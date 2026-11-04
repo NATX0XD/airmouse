@@ -107,6 +107,8 @@ final class BluetoothPeripheral: NSObject {
         case .subscribed(let central):
             bleLog.info("subscribed \(central.identifier.uuidString, privacy: .public) maxUpdate=\(central.maximumUpdateValueLength)")
             subscribers[central.identifier] = central
+            // ~15 ms connection interval instead of the default 30-50 ms (smoother moves).
+            manager.setDesiredConnectionLatency(.low, for: central)
             for d in hub.subscribed(central.identifier, screen: screen()) { notify(d, to: central.identifier) }
             refreshState(); onPeerChange?()
         case .unsubscribed(let id):

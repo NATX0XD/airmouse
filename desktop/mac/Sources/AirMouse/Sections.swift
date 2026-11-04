@@ -727,6 +727,10 @@ private struct PeerDiagnosticsCard: View {
                     Text(String(format: "%.0f", peer.stats.rate(now: now)))
                         .font(.system(size: 20, weight: .semibold, design: .rounded).monospacedDigit())
                     Text("msg/s").font(.system(size: 12)).foregroundStyle(.secondary)
+                    if let hz = peer.writeHz {
+                        Text(String(format: "%.0f writes/s", hz))
+                            .font(.system(size: 12, weight: .medium).monospacedDigit()).foregroundStyle(.secondary)
+                    }
                 }
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8, alignment: .leading), count: 4), alignment: .leading, spacing: 8) {

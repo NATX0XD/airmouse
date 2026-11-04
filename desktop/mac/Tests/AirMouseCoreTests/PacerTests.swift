@@ -9,11 +9,68 @@ import Testing
         #expect(ProtocolCodec.decode(#"{"t":"move","dx":3,"dy":-2}"#) == .move(dx: 3, dy: -2))
     }
 
-    @Test func factorScalesWithFrameTime() {
-        #expect(abs(MotionPacer.factor(dt: 1.0 / 120) - 0.45) < 1e-12)
-        // one 60 Hz frame = two 120 Hz frames
-        #expect(abs(MotionPacer.factor(dt: 1.0 / 60) - (1 - 0.55 * 0.55)) < 1e-12)
-        #expect(MotionPacer.factor(dt: 0) == 0)
+    /// Constant velocity at `hz` input (with optional arrival jitter), 120 Hz frames. Returns steady-state frame outputs.
+    static func steady(hz: Double, speed: Double, jitter: Double = 0, seconds: Double = 2) -> (out: [Double], sent: Double, pacer: MotionPacer) {
+        var p = MotionPacer()
+        var rng = SeededRandom(seed: 9)
+        var out: [Double] = []
+        var sent = 0.0
+        var k = 0
+        var t = 0.0
+        let frame = 1.0 / 120
+        var queue: [(Double, Double)] = []   // (arrival, dx)
+        while t < seconds + 0.6 {
+            while Double(k) / hz < seconds, Double(k) / hz <= t {
+                let send = Double(k) / hz
+                let arrive = send + (jitter > 0 ? Double.random(in: 0...jitter, using: &rng) : 0)
+                queue.append((arrive, speed / hz)); k += 1
+            }
+            queue.sort { $0.0 < $1.0 }
+            while let f = queue.first, f.0 <= t { p.add(dx: f.1, dy: 0); sent += f.1; queue.removeFirst() }
+            out.append(Double(p.step(dt: frame)?.dx ?? 0))
+            t += frame
+        }
+        for f in queue { sent += f.1; _ = f }
+        return (out, sent, p)
+    }
+
+    static func cv(_ xs: ArraySlice<Double>) -> Double {
+        let m = xs.reduce(0, +) / Double(xs.count)
+        let v = xs.map { ($0 - m) * ($0 - m) }.reduce(0, +) / Double(xs.count)
+        return sqrt(v) / m
+    }
+
+    @Test func twentyHzConstantVelocityIsEven() {
+        let (out, sent, p) = Self.steady(hz: 20, speed: 300)
+        let mid = out[60..<220]                                   // 0.5 s ... 1.8 s
+        #expect(Self.cv(mid) < 0.05)                              // near-constant per-frame output
+        #expect(abs(mid.reduce(0, +) / Double(mid.count) - 2.5) < 0.1)   // 300 pt/s at 120 Hz
+        #expect(abs(p.meanInterval - 0.05) < 0.003)
+        #expect(abs(out.reduce(0, +) - sent) < 1e-6)
+    }
+
+    @Test(arguments: [15.0, 30.0, 60.0])
+    func otherRatesAreEvenToo(_ hz: Double) {
+        let (out, sent, _) = Self.steady(hz: hz, speed: 400)
+        #expect(Self.cv(out[60..<220]) < 0.12)
+        #expect(abs(out.reduce(0, +) - sent) < 1e-6)
+    }
+
+    @Test func jitteredTwentyHzStaysSmooth() {
+        // BLE write-with-response: arrivals land 0-20 ms late. No frame should stop dead mid-motion.
+        let (out, sent, _) = Self.steady(hz: 20, speed: 300, jitter: 0.02)
+        let mid = out[60..<220]
+        #expect(mid.allSatisfy { $0 > 0.5 })
+        #expect(Self.cv(mid) < 0.4)
+        #expect(abs(out.reduce(0, +) - sent) < 1e-6)
+    }
+
+    @Test func glideWindowAdapts() {
+        var p = MotionPacer()
+        #expect(p.glideWindow == 0.06)
+        for _ in 0..<40 { p.add(dx: 1, dy: 0); for _ in 0..<8 { _ = p.step(dt: 1.0 / 120) } } // 15 Hz
+        #expect(abs(p.meanInterval - 1.0 / 15) < 0.003)
+        #expect(abs(p.glideWindow - 0.1) < 0.005)
     }
 
     @Test func burstyInputIsSpreadAndPreserved() {
@@ -29,7 +86,7 @@ import Testing
         #expect(abs(total - sent) < 1e-9)               // no drift, nothing lost
         #expect(p.isIdle)
         // Steady state: every frame moves, and no frame carries the whole 32 pt burst.
-        let steady = out[50..<195]
+        let steady = out[60..<195]
         #expect(steady.allSatisfy { $0 > 1 }) // never a stopped frame between bursts
         #expect(steady.max()! < 17) // the 32 pt burst is spread (first frame ~0.45 of pending)
         let mean = steady.reduce(0, +) / Double(steady.count)

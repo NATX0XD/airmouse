@@ -140,7 +140,7 @@ enum Previews {
             ble.record("hello", at: now - 40); for _ in 0..<9 { ble.record("move", at: now - 14) }
             m.previewDiagnostics = (now, [
                 PeerDiagnostics(id: "wifi-3", transport: .wifi, name: "Ghost", stats: wifi, dragging: .left),
-                PeerDiagnostics(id: "ble-6F1A2C9E-0000-0000-0000-000000000000", transport: .bluetooth, name: "Nattakit’s iPhone", stats: ble, dragging: nil),
+                PeerDiagnostics(id: "ble-6F1A2C9E-0000-0000-0000-000000000000", transport: .bluetooth, name: "Nattakit’s iPhone", stats: ble, dragging: nil, writeHz: 24),
             ])
             m.section = .about
             m.previewPacerFPS = 120

@@ -17,6 +17,7 @@ export type BluetoothMac = { id: string; name: string };
 // moves arriving meanwhile merge in the outbox (~30-60 Hz on a 15-30 ms
 // connection interval).
 const WRITE_TIMEOUT_MS = 1000;
+const MAX_IN_FLIGHT = 3;
 
 export const displayName = (advertised: string | null | undefined): string => {
   const n = (advertised ?? '').trim();
@@ -62,11 +63,12 @@ export class BleMacTransport implements Transport {
   private device: Device | null = null;
   private wanted = false;
   private outbox = new Outbox();
-  private flushing = false;
+  private inFlight = 0;
+  private recent: number[] = []; // completion times in the last second (write rate)
   private paceTimer: ReturnType<typeof setTimeout> | null = null;
   private lastMoveAt = 0;
   // Debug counters (writes, errors, timeouts).
-  stats = { writes: 0, errors: 0, timeouts: 0, lastError: '', mtu: 0, inFlight: 0 };
+  stats = { writes: 0, errors: 0, timeouts: 0, lastError: '', mtu: 0 };
   private tx = 0;
   private retry: ReturnType<typeof setTimeout> | null = null;
   private subs: Subscription[] = [];
@@ -204,13 +206,15 @@ export class BleMacTransport implements Transport {
 
   debugStats() {
     const s = this.stats;
-    return { link: this.device ? 'connected' : 'down', queued: this.outbox.size, 'in flight': s.inFlight, written: s.writes, failed: s.errors, timeouts: s.timeouts, 'last error': s.lastError };
+    const now = Date.now();
+    const rate = this.recent.filter((t) => now - t <= 1000).length;
+    return { link: this.device ? 'connected' : 'down', 'write rate': `${rate} Hz`, queued: this.outbox.size, 'in flight': this.inFlight, written: s.writes, failed: s.errors, timeouts: s.timeouts, 'last error': s.lastError };
   }
 
   send(msg: Msg): boolean {
     if (!this.device) return false;
     this.outbox.push(msg);
-    if (!this.flushing && !this.paceTimer) void this.flush();
+    if (!this.paceTimer) this.flush();
     return true;
   }
 
@@ -230,44 +234,49 @@ export class BleMacTransport implements Transport {
     return Promise.race([op, limit]).finally(() => timer && clearTimeout(timer));
   }
 
-  // One write at a time (ble-plx waits for canSendWriteWithoutResponse, so
-  // this is the back-pressure). Moves are paced to ~60 Hz; moves arriving in
-  // between merge into the queued one.
-  private async flush() {
-    if (this.flushing) return;
-    this.flushing = true;
-    try {
-      while (this.device) {
-        const head = this.outbox.peek();
-        if (!head) break;
-        if (head.t === 'move') {
-          const wait = moveWait(Date.now(), this.lastMoveAt);
-          if (wait > 0) {
+  // Up to MAX_IN_FLIGHT writes are handed to iOS at once (CoreBluetooth
+  // queues them in order; ATT still answers one at a time, so this mainly
+  // hides the JS <-> native gap). Moves are paced to ~60 Hz and whatever
+  // arrives while all slots are busy merges into the next write.
+  // Note: ble-plx resolves every pending write on the first reply for the
+  // characteristic, so completions can come early; the 16 ms pacing keeps
+  // iOS's own queue bounded anyway.
+  private flush() {
+    while (this.device && this.inFlight < MAX_IN_FLIGHT) {
+      const head = this.outbox.peek();
+      if (!head) return;
+      if (head.t === 'move') {
+        const wait = moveWait(Date.now(), this.lastMoveAt);
+        if (wait > 0) {
+          if (!this.paceTimer) {
             this.paceTimer = setTimeout(() => {
               this.paceTimer = null;
-              void this.flush();
+              this.flush();
             }, wait);
-            break;
           }
+          return;
         }
-        this.outbox.shift();
-        const d = this.device;
-        const value = frame(head);
-        try {
-          if (head.t === 'move') this.lastMoveAt = Date.now();
-          this.stats.inFlight = 1;
-          await this.write(d, value);
+        this.lastMoveAt = Date.now();
+      }
+      this.outbox.shift();
+      const d = this.device;
+      this.inFlight += 1;
+      this.write(d, frame(head))
+        .then(() => {
           this.stats.writes += 1;
-        } catch (e) {
-          // The message is dropped, the loop goes on; a lost link is handled by onDisconnected.
+          const now = Date.now();
+          this.recent.push(now);
+          while (this.recent.length && now - this.recent[0] > 1000) this.recent.shift();
+        })
+        .catch((e: unknown) => {
+          // The message is dropped; a lost link is handled by onDisconnected.
           this.stats.errors += 1;
           this.stats.lastError = e instanceof Error ? e.message : String(e);
-        } finally {
-          this.stats.inFlight = 0;
-        }
-      }
-    } finally {
-      this.flushing = false;
+        })
+        .finally(() => {
+          this.inFlight = Math.max(0, this.inFlight - 1);
+          this.flush();
+        });
     }
   }
 }

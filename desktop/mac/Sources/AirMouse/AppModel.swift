@@ -314,7 +314,9 @@ final class AppModel {
             peers.append(PeerDiagnostics(id: "wifi-\(c.id)", transport: .wifi, session: c.session))
         }
         for (uuid, session) in (ble?.hub.sessions ?? [:]).sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
-            peers.append(PeerDiagnostics(id: "ble-\(uuid.uuidString)", transport: .bluetooth, session: session))
+            var d = PeerDiagnostics(id: "ble-\(uuid.uuidString)", transport: .bluetooth, session: session)
+            d.writeHz = ble?.hub.writeRate(uuid, now: ProcessInfo.processInfo.systemUptime)
+            peers.append(d)
         }
         return (ProcessInfo.processInfo.systemUptime, peers)
     }

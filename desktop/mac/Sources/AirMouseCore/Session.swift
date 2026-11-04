@@ -211,9 +211,11 @@ public struct PeerDiagnostics: Identifiable, Equatable, Sendable {
     public var name: String
     public var stats: MessageStats
     public var dragging: MouseButton?
+    /// BLE only: GATT writes per second (several moves may share one write).
+    public var writeHz: Double?
 
-    public init(id: String, transport: Transport, name: String, stats: MessageStats, dragging: MouseButton?) {
-        self.id = id; self.transport = transport; self.name = name; self.stats = stats; self.dragging = dragging
+    public init(id: String, transport: Transport, name: String, stats: MessageStats, dragging: MouseButton?, writeHz: Double? = nil) {
+        self.id = id; self.transport = transport; self.name = name; self.stats = stats; self.dragging = dragging; self.writeHz = writeHz
     }
 
     public init(id: String, transport: Transport, session: ReceiverSession) {
