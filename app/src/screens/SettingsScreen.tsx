@@ -29,6 +29,7 @@ type Props = {
   onShowTour: () => void;
   onShowWelcome: () => void;
   onShowExplainer: () => void;
+  onShowSensorToCursor: () => void;
   initialScroll?: number;
   diagnostics?: () => Diagnostics;
   onBench?: () => void;
@@ -167,6 +168,7 @@ export function SettingsScreen(props: Props) {
 
         <Section header="Help">
           <ListRow title="How AirMouse Works" icon="questionmark.circle" iconColor="#0A84FF" chevron onPress={props.onShowExplainer} />
+          <ListRow title="From Sensor to Cursor" icon="scope" iconColor="#30B0C7" chevron onPress={props.onShowSensorToCursor} />
           <ListRow title="Show Tour" icon="sparkles" iconColor="#BF5AF2" chevron onPress={props.onShowTour} />
           <ListRow title="Show Welcome" icon="hand.wave.fill" iconColor="#5E5CE6" chevron onPress={props.onShowWelcome} />
         </Section>

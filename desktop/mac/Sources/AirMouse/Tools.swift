@@ -125,6 +125,15 @@ enum Previews {
                 window("tour-\(i + 1)-\(step.rawValue)", m, .home, dark: dark)
             }
         }
+        // About > From Sensor to Cursor
+        SensorPreview.frozen = true
+        for dark in [false, true] {
+            for i in [0, 2, 4, 6, 8] {
+                render(SensorToCursorView(initialPage: i, onClose: {}), size: CGSize(width: 720, height: 620), dark: dark,
+                       to: dir.appendingPathComponent("sensor-to-cursor-\(i + 1)-\(dark ? "dark" : "light").png"))
+            }
+        }
+        SensorPreview.frozen = false
         // About > Diagnostics (taller window so the section is in view)
         for dark in [false, true] {
             let m = sampleModel(connected: true, accessibility: true)

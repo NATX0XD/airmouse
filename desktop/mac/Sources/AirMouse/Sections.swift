@@ -625,6 +625,7 @@ private struct Metric: View {
 
 struct AboutPage: View {
     var model: AppModel
+    @State private var showSensorToCursor = false
     var body: some View {
         Page(title: "About", subtitle: nil) {
             HStack(spacing: 16) {
@@ -653,6 +654,7 @@ struct AboutPage: View {
                 Button("How It Works", action: model.showHowItWorks).buttonStyle(SoftButtonStyle()).frame(width: 150)
                 Button("Show Tour", action: model.startTour).buttonStyle(SoftButtonStyle()).frame(width: 150)
             }
+            Button("From Sensor to Cursor") { showSensorToCursor = true }.buttonStyle(SoftButtonStyle()).frame(width: 200)
             Button(role: .destructive, action: model.confirmReset) {
                 Label("Reset AirMouse…", systemImage: "arrow.counterclockwise")
                     .foregroundStyle(Theme.error)
@@ -661,6 +663,7 @@ struct AboutPage: View {
             .frame(width: 200)
             DiagnosticsSection(model: model).padding(.top, 8)
         }
+        .sheet(isPresented: $showSensorToCursor) { SensorToCursorView(onClose: { showSensorToCursor = false }) }
     }
 }
 

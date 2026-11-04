@@ -23,6 +23,7 @@ import { missing, STEPS, stepCompleted, type PermissionId } from './src/setup/st
 import { FLAG_KEYS, launchStep, shouldStartTour, TOUR_IDLE, tourNext, tourSkip, tourStart, type Tour } from './src/setup/onboarding';
 import { WelcomeFlow } from './src/screens/WelcomeFlow';
 import { ExplainerFlow } from './src/screens/ExplainerFlow';
+import { SensorToCursorFlow } from './src/screens/SensorToCursorFlow';
 import { TourOverlay, TourProvider } from './src/ui/Tour';
 import { WARNING_TEXT } from './src/setup/warnings';
 import { TabBar } from './src/ui/TabBar';
@@ -113,6 +114,7 @@ function AirMouseApp({ onReset }: { onReset: () => void }) {
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [welcomeSession, setWelcomeSession] = useState(0);
   const [explainerOpen, setExplainerOpen] = useState(false);
+  const [s2cOpen, setS2cOpen] = useState(false);
   const [tour, setTour] = useState<Tour>(TOUR_IDLE);
   const [tourDone, setTourDone] = useState(true); // set from storage at launch
   const openSetup = useCallback((step?: PermissionId) => {
@@ -511,6 +513,7 @@ function AirMouseApp({ onReset }: { onReset: () => void }) {
                 setWelcomeOpen(true);
               }}
               onShowExplainer={() => setExplainerOpen(true)}
+              onShowSensorToCursor={() => setS2cOpen(true)}
             />
           )}
           <TabBar
@@ -559,6 +562,7 @@ function AirMouseApp({ onReset }: { onReset: () => void }) {
       <CalibrationPrompt visible={promptVisible && wantPrompt} onStart={startFromPrompt} onLater={() => setPromptLater(true)} />
 
       <WelcomeFlow key={`welcome-${welcomeSession}-${preview?.page ?? 0}`} visible={welcomeOpen} startPage={preview?.page} onDone={finishWelcome} addGyroListener={air.addGyroListener} />
+      <SensorToCursorFlow visible={s2cOpen} onDone={() => setS2cOpen(false)} />
       <ExplainerFlow visible={explainerOpen} onDone={() => setExplainerOpen(false)} addGyroListener={air.addGyroListener} />
 
       <SetupFlow
